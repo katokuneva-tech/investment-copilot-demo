@@ -9,9 +9,12 @@ import {
   TrendingUp,
   GitCompare,
   Shield,
+  Paperclip,
+  X,
 } from 'lucide-react';
 import { SKILLS } from '@/lib/constants';
-import { ChatSession } from '@/lib/types';
+import { ChatSession, KBDocument } from '@/lib/types';
+import { uploadChatFile } from '@/lib/api';
 import MessageBubble from './MessageBubble';
 import SkillSelector from './SkillSelector';
 
@@ -27,7 +30,7 @@ interface ChatAreaProps {
   activeSession: ChatSession | null;
   activeSkillId: string | null;
   isStreaming: boolean;
-  onSendMessage: (text: string) => void;
+  onSendMessage: (text: string, attachmentIds?: string[], overrideSkillId?: string) => void;
   onSelectSkill: (skillId: string) => void;
   onStopStreaming: () => void;
 }
@@ -41,8 +44,10 @@ export default function ChatArea({
   onStopStreaming,
 }: ChatAreaProps) {
   const [input, setInput] = useState('');
+  const [attachedFiles, setAttachedFiles] = useState<KBDocument[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const skill = SKILLS.find((s) => s.id === activeSkillId);
   const messages = activeSession?.messages || [];
@@ -60,11 +65,33 @@ export default function ChatArea({
     }
   }, [input]);
 
+  const handleAttach = () => fileInputRef.current?.click();
+
+  const handleFileAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !activeSession) return;
+    for (const file of Array.from(files)) {
+      try {
+        const doc = await uploadChatFile(file, activeSession.id);
+        setAttachedFiles(prev => [...prev, doc]);
+      } catch (err) {
+        console.error('Upload failed:', err);
+      }
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeAttachment = (docId: string) => {
+    setAttachedFiles(prev => prev.filter(f => f.id !== docId));
+  };
+
   const handleSend = () => {
     const text = input.trim();
     if (!text || isStreaming) return;
+    const ids = attachedFiles.map(f => f.id);
     setInput('');
-    onSendMessage(text);
+    setAttachedFiles([]);
+    onSendMessage(text, ids);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -75,8 +102,7 @@ export default function ChatArea({
   };
 
   const handlePromptClick = (skillId: string, prompt: string) => {
-    onSelectSkill(skillId);
-    setTimeout(() => onSendMessage(prompt), 50);
+    onSendMessage(prompt, undefined, skillId);
   };
 
   const SkillIcon = skill ? ICON_MAP[skill.icon] || FileText : null;
@@ -84,21 +110,17 @@ export default function ChatArea({
   return (
     <div className="flex-1 flex flex-col h-screen bg-[#F9FAFB]">
       {/* Header */}
-      {skill && (
-        <div className="px-6 py-3 border-b border-gray-200 bg-white flex items-center gap-3">
-          {SkillIcon && (
-            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
-              <SkillIcon size={16} className="text-[#E11D48]" />
-            </div>
-          )}
-          <div>
-            <h1 className="text-sm font-semibold text-gray-800">
-              {skill.name}
-            </h1>
-            <p className="text-xs text-gray-400">{skill.description}</p>
-          </div>
+      <div className="px-6 py-3 border-b border-gray-200 bg-white flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+          <BarChart3 size={16} className="text-[#E11D48]" />
         </div>
-      )}
+        <div>
+          <h1 className="text-sm font-semibold text-gray-800">
+            Investment Intelligence Copilot
+          </h1>
+          <p className="text-xs text-gray-400">AI-аналитик портфеля АФК Система</p>
+        </div>
+      </div>
 
       {/* Messages or Selector */}
       {showSelector ? (
@@ -117,17 +139,41 @@ export default function ChatArea({
 
       {/* Input */}
       <div className="px-6 py-4 bg-white border-t border-gray-200">
+        {attachedFiles.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2 max-w-4xl mx-auto">
+            {attachedFiles.map(f => (
+              <div key={f.id} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-[#E11D48] text-xs">
+                <FileText size={12} />
+                <span className="truncate max-w-[150px]">{f.original_name}</span>
+                <button onClick={() => removeAttachment(f.id)} className="hover:text-red-700">
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex items-end gap-2 max-w-4xl mx-auto">
+          <button
+            onClick={handleAttach}
+            className="w-10 h-10 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-colors shrink-0"
+            title="Прикрепить файл"
+          >
+            <Paperclip size={16} className="text-gray-400" />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,.pdf,.docx,.xlsx,.xls,.txt,.md,.csv"
+            multiple
+            onChange={handleFileAttach}
+            className="hidden"
+          />
           <textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={
-              skill
-                ? `Задайте вопрос по «${skill.name}»...`
-                : 'Выберите инструмент и задайте вопрос...'
-            }
+            placeholder="Задайте вопрос по портфелю, проектам, рынкам..."
             rows={1}
             className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E11D48]/20 focus:border-[#E11D48]/40 transition-all"
           />

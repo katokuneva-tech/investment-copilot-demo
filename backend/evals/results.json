@@ -1,0 +1,270 @@
+[
+  {
+    "id": "pa_growth",
+    "skill_id": "portfolio_analytics",
+    "passed": true,
+    "keyword_pass": true,
+    "keyword_results": {
+      "Ozon": true
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 39.3,
+    "response_length": 611
+  },
+  {
+    "id": "pa_debt",
+    "skill_id": "portfolio_analytics",
+    "passed": true,
+    "keyword_pass": true,
+    "keyword_results": {
+      "Segezha": true,
+      "14": true
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 40.6,
+    "response_length": 560
+  },
+  {
+    "id": "pa_dividends",
+    "skill_id": "portfolio_analytics",
+    "passed": true,
+    "keyword_pass": true,
+    "keyword_results": {
+      "МТС": true
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 20.4,
+    "response_length": 403
+  },
+  {
+    "id": "pa_sectors",
+    "skill_id": "portfolio_analytics",
+    "passed": true,
+    "keyword_pass": true,
+    "keyword_results": {
+      "телеком": true,
+      "МТС": true
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 129.5,
+    "response_length": 1849
+  },
+  {
+    "id": "pa_ipo",
+    "skill_id": "portfolio_analytics",
+    "passed": true,
+    "keyword_pass": true,
+    "keyword_results": {
+      "МЕДСИ": true
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 48.2,
+    "response_length": 826
+  },
+  {
+    "id": "pa_events",
+    "skill_id": "portfolio_analytics",
+    "passed": false,
+    "keyword_pass": false,
+    "keyword_results": {
+      "Элемент": false
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 108.8,
+    "response_length": 1571
+  },
+  {
+    "id": "pa_holding",
+    "skill_id": "portfolio_analytics",
+    "passed": false,
+    "keyword_pass": false,
+    "keyword_results": {
+      "2.9": false,
+      "трлн": false
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 128.5,
+    "response_length": 2760
+  },
+  {
+    "id": "pa_overview",
+    "skill_id": "portfolio_analytics",
+    "passed": false,
+    "keyword_pass": false,
+    "keyword_results": {
+      "23": false,
+      "компан": true
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 177.9,
+    "response_length": 1604
+  },
+  {
+    "id": "ia_project",
+    "skill_id": "investment_analysis",
+    "passed": false,
+    "keyword_pass": false,
+    "keyword_results": {
+      "NPV": false,
+      "IRR": false
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 44.3,
+    "response_length": 536
+  },
+  {
+    "id": "ia_flags",
+    "skill_id": "investment_analysis",
+    "passed": false,
+    "keyword_pass": false,
+    "keyword_results": {
+      "заполняемость": false,
+      "95%": false
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 70.7,
+    "response_length": 735
+  },
+  {
+    "id": "mr_logistics",
+    "skill_id": "market_research",
+    "passed": true,
+    "keyword_pass": true,
+    "keyword_results": {
+      "трлн": true
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 86.9,
+    "response_length": 2542
+  },
+  {
+    "id": "mr_players",
+    "skill_id": "market_research",
+    "passed": false,
+    "keyword_pass": false,
+    "keyword_results": {
+      "Деловые": false
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 16.6,
+    "response_length": 296
+  },
+  {
+    "id": "bm_compare",
+    "skill_id": "benchmarking",
+    "passed": true,
+    "keyword_pass": true,
+    "keyword_results": {
+      "EV/EBITDA": true
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 187.8,
+    "response_length": 2304
+  },
+  {
+    "id": "bm_segezha",
+    "skill_id": "benchmarking",
+    "passed": true,
+    "keyword_pass": true,
+    "keyword_results": {
+      "Segezha": true
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 147.9,
+    "response_length": 368
+  },
+  {
+    "id": "ca_contradictions",
+    "skill_id": "committee_advisor",
+    "passed": true,
+    "keyword_pass": true,
+    "keyword_results": {
+      "заполняемость": true
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 467.8,
+    "response_length": 1825
+  },
+  {
+    "id": "ca_risks",
+    "skill_id": "committee_advisor",
+    "passed": true,
+    "keyword_pass": true,
+    "keyword_results": {
+      "риск": true
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 6.9,
+    "response_length": 587
+  },
+  {
+    "id": "ca_recommendation",
+    "skill_id": "committee_advisor",
+    "passed": false,
+    "keyword_pass": false,
+    "keyword_results": {
+      "за": true,
+      "против": false
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 3.5,
+    "response_length": 276
+  },
+  {
+    "id": "auto_routing",
+    "skill_id": "auto",
+    "passed": true,
+    "keyword_pass": true,
+    "keyword_results": {
+      "Segezha": true
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 10.1,
+    "response_length": 331
+  },
+  {
+    "id": "memory_test",
+    "skill_id": "portfolio_analytics",
+    "passed": true,
+    "keyword_pass": true,
+    "keyword_results": {
+      "Segezha": true
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 35.3,
+    "response_length": 440
+  },
+  {
+    "id": "pa_mts_details",
+    "skill_id": "portfolio_analytics",
+    "passed": false,
+    "keyword_pass": false,
+    "keyword_results": {
+      "МТС": true,
+      "807": false
+    },
+    "judge_pass": true,
+    "judge_detail": "Skipped",
+    "elapsed_sec": 61.4,
+    "response_length": 1689
+  }
+]

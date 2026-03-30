@@ -6,7 +6,7 @@ from app.services.pdf_generator import ReportPDF
 
 
 class InvestmentAnalysisSkill(BaseSkill):
-    async def handle(self, message: str, session_id: str) -> ChatResponse:
+    async def handle(self, message: str, session_id: str, extra_context: str = "") -> ChatResponse:
         p = PROJECT
         npv = calculate_npv(p["cash_flows"], p["discount_rate"])
         irr = calculate_irr(p["cash_flows"])
@@ -93,9 +93,4 @@ class InvestmentAnalysisSkill(BaseSkill):
                 "title": f"Заключение ИК: {p['name']}",
                 "description": "PDF, 5 страниц — полное заключение с таблицами и графиками",
             }),
-            ContentBlock(type="sources", data=[
-                {"id": "src_model", "title": "Финансовая модель проекта (XLSX)", "type": "financial_model", "page": ""},
-                {"id": "src_pres", "title": "Презентация проекта", "type": "presentation", "page": ""},
-                {"id": "src_calc", "title": "Расчет NPV/IRR (financial_calculator)", "type": "calculation", "page": "Детерминированный"},
-            ]),
         ])

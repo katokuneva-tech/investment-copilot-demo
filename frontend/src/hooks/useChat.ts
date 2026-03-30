@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import { ChatSession, Message, ContentBlock } from '@/lib/types';
+import { ChatSession, Message, ContentBlock, ThinkingStep } from '@/lib/types';
 import { streamChat, SSEEvent } from '@/lib/api';
 
 function generateId(): string {
@@ -58,22 +58,24 @@ export function useChat() {
   );
 
   const sendMessage = useCallback(
-    async (text: string) => {
-      if (!activeSkillId || isStreaming) return;
+    async (text: string, attachmentIds?: string[], overrideSkillId?: string) => {
+      const skillId = overrideSkillId || activeSkillId;
+      if (!skillId || isStreaming) return;
 
       let sessionId = activeSessionId;
 
-      // Create session if needed
-      if (!sessionId) {
+      // Create session if needed (or if skill changed)
+      if (!sessionId || (overrideSkillId && sessions.find(s => s.id === sessionId)?.skillId !== overrideSkillId)) {
         const id = generateId();
         const session: ChatSession = {
           id,
-          skillId: activeSkillId,
+          skillId: skillId,
           title: text.slice(0, 60),
           messages: [],
         };
         setSessions((prev) => [session, ...prev]);
         setActiveSessionId(id);
+        setActiveSkillId(skillId);
         sessionId = id;
       }
 
@@ -122,6 +124,23 @@ export function useChat() {
 
       let currentTextBlock: ContentBlock | null = null;
 
+      const updateThinkingSteps = (step: ThinkingStep) => {
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  messages: s.messages.map((m) =>
+                    m.id === assistantId
+                      ? { ...m, thinkingSteps: [...(m.thinkingSteps || []), step] }
+                      : m,
+                  ),
+                }
+              : s,
+          ),
+        );
+      };
+
       const updateAssistantBlocks = (
         updater: (blocks: ContentBlock[]) => ContentBlock[],
       ) => {
@@ -143,6 +162,18 @@ export function useChat() {
 
       const handleEvent = (event: SSEEvent) => {
         switch (event.type) {
+          case 'status': {
+            const content = event.content || '';
+            let stepType: ThinkingStep['type'] = 'tool_result';
+            if (content.startsWith('... ')) stepType = 'thinking';
+            else if (content.startsWith('>> ')) stepType = 'tool_call';
+            updateThinkingSteps({
+              type: stepType,
+              content: content.replace(/^\.\.\.\s*/, '').replace(/^>>\s*/, ''),
+              timestamp: Date.now(),
+            });
+            break;
+          }
           case 'text_delta': {
             if (!currentTextBlock) {
               currentTextBlock = { type: 'text', data: event.content };
@@ -197,16 +228,31 @@ export function useChat() {
         abortRef.current = null;
       };
 
+      // Build conversation history for LLM context
+      const currentSession = sessions.find(s => s.id === sessionId);
+      const history = (currentSession?.messages || [])
+          .filter(m => m.blocks.some(b => b.type === 'text'))
+          .slice(-10)
+          .map(m => ({
+              role: m.role,
+              content: m.blocks
+                  .filter(b => b.type === 'text')
+                  .map(b => String(b.data))
+                  .join('\n'),
+          }));
+
       await streamChat(
-        activeSkillId,
+        skillId,
         text,
         sessionId,
         handleEvent,
         handleError,
         abortController.signal,
+        attachmentIds,
+        history,
       );
     },
-    [activeSessionId, activeSkillId, isStreaming],
+    [activeSessionId, activeSkillId, isStreaming, sessions],
   );
 
   const stopStreaming = useCallback(() => {

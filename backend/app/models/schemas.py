@@ -8,6 +8,8 @@ class ChatRequest(BaseModel):
     skill_id: str
     message: str
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    attachment_ids: list[str] = []
+    history: list[dict] = []  # [{role: "user"|"assistant", content: "..."}]
 
 
 class ContentBlock(BaseModel):

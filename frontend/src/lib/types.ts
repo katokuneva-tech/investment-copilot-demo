@@ -11,10 +11,17 @@ export interface ContentBlock {
   data: any;
 }
 
+export interface ThinkingStep {
+  type: 'thinking' | 'tool_call' | 'tool_result';
+  content: string;
+  timestamp: number;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   blocks: ContentBlock[];
+  thinkingSteps?: ThinkingStep[];
   timestamp: Date;
 }
 
@@ -54,4 +61,18 @@ export interface PdfLinkData {
 export interface SourceData {
   title: string;
   type?: string;
+}
+
+export interface KBDocument {
+  id: string;
+  filename: string;
+  original_name: string;
+  file_type: string;
+  scope: 'global' | 'session';
+  session_id: string | null;
+  uploaded_at: string;
+  size_bytes: number;
+  status: 'ready' | 'processing' | 'error';
+  text_preview: string;
+  is_active: boolean;
 }

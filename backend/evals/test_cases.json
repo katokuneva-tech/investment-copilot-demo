@@ -1,0 +1,146 @@
+[
+  {
+    "id": "pa_growth",
+    "skill_id": "portfolio_analytics",
+    "message": "Какая компания растёт быстрее всех по выручке?",
+    "expected_contains": ["Ozon"],
+    "eval_prompt": "Ответ должен назвать Ozon как лидера роста выручки (~997 млрд, ~63% рост)"
+  },
+  {
+    "id": "pa_debt",
+    "skill_id": "portfolio_analytics",
+    "message": "У кого самая высокая долговая нагрузка?",
+    "expected_contains": ["Segezha", "14"],
+    "eval_prompt": "Ответ должен выделить Segezha с критическим долг/EBITDA ~14x"
+  },
+  {
+    "id": "pa_dividends",
+    "skill_id": "portfolio_analytics",
+    "message": "Кто может заплатить дивиденды?",
+    "expected_contains": ["МТС"],
+    "eval_prompt": "Ответ должен упомянуть МТС как главный дивидендный актив (12.5% доходность)"
+  },
+  {
+    "id": "pa_sectors",
+    "skill_id": "portfolio_analytics",
+    "message": "Анализ по секторам портфеля",
+    "expected_contains": ["телеком", "МТС"],
+    "eval_prompt": "Ответ должен описать секторную структуру с телекомом как якорным сектором"
+  },
+  {
+    "id": "pa_ipo",
+    "skill_id": "portfolio_analytics",
+    "message": "IPO pipeline",
+    "expected_contains": ["МЕДСИ"],
+    "eval_prompt": "Ответ должен перечислить кандидатов на IPO включая МЕДСИ, Биннофарм, СТЕПЬ"
+  },
+  {
+    "id": "pa_events",
+    "skill_id": "portfolio_analytics",
+    "message": "Ключевые события 2025-2026",
+    "expected_contains": ["Элемент"],
+    "eval_prompt": "Ответ должен упомянуть продажу Элемента Сбербанку и другие ключевые сделки"
+  },
+  {
+    "id": "pa_holding",
+    "skill_id": "portfolio_analytics",
+    "message": "Обзор холдинга АФК Система",
+    "expected_contains": ["2.9", "трлн"],
+    "eval_prompt": "Ответ должен указать активы ~2.9 трлн и ключевые метрики холдинга"
+  },
+  {
+    "id": "pa_overview",
+    "skill_id": "portfolio_analytics",
+    "message": "Покажи обзор портфеля",
+    "expected_contains": ["23", "компан"],
+    "eval_prompt": "Ответ должен упомянуть 23 портфельные компании"
+  },
+  {
+    "id": "ia_project",
+    "skill_id": "investment_analysis",
+    "message": "Анализ инвестпроекта логистический хаб",
+    "expected_contains": ["NPV", "IRR"],
+    "eval_prompt": "Ответ должен содержать NPV и IRR проекта логистического хаба"
+  },
+  {
+    "id": "ia_flags",
+    "skill_id": "investment_analysis",
+    "message": "Какие красные флаги у проекта?",
+    "expected_contains": ["заполняемость", "95%"],
+    "eval_prompt": "Ответ должен выделить агрессивную заполняемость 95% при рынке 88-92%"
+  },
+  {
+    "id": "mr_logistics",
+    "skill_id": "market_research",
+    "message": "Анализ рынка логистики в России",
+    "expected_contains": ["трлн"],
+    "eval_prompt": "Ответ должен указать размер рынка логистики ~4.5 трлн руб"
+  },
+  {
+    "id": "mr_players",
+    "skill_id": "market_research",
+    "message": "Кто ключевые игроки на рынке логистики?",
+    "expected_contains": ["Деловые"],
+    "eval_prompt": "Ответ должен перечислить ключевых игроков: Деловые Линии, ПЭК, СДЭК"
+  },
+  {
+    "id": "bm_compare",
+    "skill_id": "benchmarking",
+    "message": "Сравни компании портфеля с аналогами",
+    "expected_contains": ["EV/EBITDA"],
+    "eval_prompt": "Ответ должен содержать сравнение по мультипликатору EV/EBITDA"
+  },
+  {
+    "id": "bm_segezha",
+    "skill_id": "benchmarking",
+    "message": "Segezha переоценена или недооценена?",
+    "expected_contains": ["Segezha"],
+    "eval_prompt": "Ответ должен оценить Segezha относительно аналогов (премия при высоком долге)"
+  },
+  {
+    "id": "ca_contradictions",
+    "skill_id": "committee_advisor",
+    "message": "Найди противоречия в материалах",
+    "expected_contains": ["заполняемость"],
+    "eval_prompt": "Ответ должен найти противоречия: заполняемость 97% vs 95% vs 90%"
+  },
+  {
+    "id": "ca_risks",
+    "skill_id": "committee_advisor",
+    "message": "Каковы риски сделки?",
+    "expected_contains": ["риск"],
+    "eval_prompt": "Ответ должен перечислить риски с ранжированием по критичности"
+  },
+  {
+    "id": "ca_recommendation",
+    "skill_id": "committee_advisor",
+    "message": "Стоит ли входить в проект?",
+    "expected_contains": ["за", "против"],
+    "eval_prompt": "Ответ должен содержать структурированные аргументы за и против"
+  },
+  {
+    "id": "auto_routing",
+    "skill_id": "auto",
+    "message": "Какой долг у Segezha?",
+    "expected_contains": ["Segezha"],
+    "eval_prompt": "При автоматической маршрутизации ответ должен содержать информацию о долге Segezha"
+  },
+  {
+    "id": "memory_test",
+    "skill_id": "portfolio_analytics",
+    "message": "А по долгу?",
+    "history": [
+      {"role": "user", "content": "Кто лидер по выручке?"},
+      {"role": "assistant", "content": "Лидер по выручке — Ozon с 997.9 млрд руб."}
+    ],
+    "expected_contains": ["Segezha"],
+    "eval_prompt": "С учётом истории разговора (предыдущий вопрос про выручку), ответ на 'а по долгу?' должен показать компанию с максимальным долгом"
+  },
+  {
+    "id": "pa_mts_details",
+    "skill_id": "portfolio_analytics",
+    "message": "Расскажи подробнее про МТС",
+    "expected_contains": ["МТС", "807"],
+    "eval_prompt": "Ответ должен содержать ключевые метрики МТС: выручка ~807 млрд, дивиденды"
+  }
+]

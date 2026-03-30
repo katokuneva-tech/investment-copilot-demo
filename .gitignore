@@ -13,3 +13,10 @@ frontend/out/
 # System
 .DS_Store
 .env
+*.db
+
+backend/app/data/passwords.json
+tunnel.log
+tunnel.sh
+.claude/
+frontend/.claude/

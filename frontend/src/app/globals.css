@@ -56,6 +56,15 @@ div[class*="overflow-y-auto"]::-webkit-scrollbar-thumb {
   border-radius: 10px;
 }
 
+/* Thinking steps animation */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.3s ease-out forwards;
+}
+
 /* Prose overrides for markdown */
 .prose :where(ul):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
   list-style-type: disc;

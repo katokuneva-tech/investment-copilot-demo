@@ -5,7 +5,7 @@ from app.services.pdf_generator import ReportPDF
 
 
 class MarketResearchSkill(BaseSkill):
-    async def handle(self, message: str, session_id: str) -> ChatResponse:
+    async def handle(self, message: str, session_id: str, extra_context: str = "") -> ChatResponse:
         m = MARKET_DATA["logistics"]
 
         # Generate PDF
@@ -86,8 +86,4 @@ class MarketResearchSkill(BaseSkill):
                 "title": "Аналитический обзор рынка логистики",
                 "description": "PDF, 7 страниц — размер рынка, сегменты, игроки, M&A, тренды",
             }),
-            ContentBlock(type="sources", data=[
-                {"id": "src_market", "title": "Аналитика рынка логистики РФ 2025", "type": "market_report", "page": ""},
-                {"id": "src_jll", "title": "JLL Russia Warehouse Market Q4 2025", "type": "market_report", "page": ""},
-            ]),
         ])

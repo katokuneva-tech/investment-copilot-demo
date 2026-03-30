@@ -1,0 +1,22 @@
+{
+  "kb_default": true,
+  "src_mts": true,
+  "src_seg_report": true,
+  "src_seg_q4": true,
+  "src_etalon": true,
+  "src_step": true,
+  "src_binno": true,
+  "src_seg_credit": true,
+  "src_div_mts": true,
+  "src_seg_div": true,
+  "src_project": true,
+  "src_finmodel": true,
+  "src_appraiser": true,
+  "src_mgmt": true,
+  "src_legal_dd": true,
+  "src_logistics": true,
+  "src_jll": true,
+  "src_bloomberg": true,
+  "src_industry": true,
+  "src_committee": true
+}

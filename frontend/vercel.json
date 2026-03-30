@@ -1,0 +1,11 @@
+{
+  "buildCommand": "STATIC_EXPORT=true npm run build",
+  "outputDirectory": "out",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://investment-copilot-api.up.railway.app/api/:path*"
+    }
+  ]
+}

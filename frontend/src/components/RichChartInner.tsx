@@ -20,9 +20,38 @@ interface RichChartInnerProps {
 }
 
 export default function RichChartInner({ data }: RichChartInnerProps) {
-  const { chart_type, title, x_key, series, data: chartData } = data;
+  const { chart_type, title, x_key, series: rawSeries, data: rawChartData } = data;
 
-  if (!chartData || !series) return null;
+  if (!rawChartData || !rawSeries) return null;
+
+  // Normalize series: backend may send "data_key" instead of "key"
+  const series = rawSeries.map((s: any) => ({
+    ...s,
+    key: s.key || s.data_key || s.name?.toLowerCase().replace(/\s+/g, '_') || 'value',
+  }));
+
+  // Normalize chart data: parse string values to numbers, filter out non-numeric entries
+  const chartData = rawChartData.map((point: Record<string, any>) => {
+    const normalized: Record<string, any> = { [x_key]: point[x_key] };
+    for (const s of series) {
+      let val = point[s.key];
+      if (val === undefined && (s as any).data_key) {
+        val = point[(s as any).data_key];
+      }
+      if (typeof val === 'string') {
+        if (val === 'н/д' || val === 'N/A' || val === '-') {
+          normalized[s.key] = 0;
+        } else {
+          const cleaned = val.replace(/[+%\s]/g, '').replace(',', '.');
+          const num = parseFloat(cleaned);
+          normalized[s.key] = isNaN(num) ? 0 : num;
+        }
+      } else {
+        normalized[s.key] = typeof val === 'number' ? val : 0;
+      }
+    }
+    return normalized;
+  });
 
   const ChartComponent = chart_type === 'line' ? LineChart : BarChart;
 

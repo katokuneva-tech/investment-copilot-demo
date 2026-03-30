@@ -1,11 +1,32 @@
 """PDF report generator with Cyrillic support via fpdf2 + DejaVuSans."""
 
 import os
+import re as _re
 import uuid
 from fpdf import FPDF
 
-FONTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "fonts")
-REPORTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "reports")
+# ---------- emoji-safe sanitizer ----------
+_EMOJI_RE = _re.compile(
+    "[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF"
+    "\U0001F1E0-\U0001F1FF\U00002702-\U000027B0\U000024C2-\U0001F251"
+    "\U0001F900-\U0001F9FF\U0001FA00-\U0001FA6F\U0001FA70-\U0001FAFF]+",
+    flags=_re.UNICODE,
+)
+_EMOJI_MAP = {
+    "🔴": "[КРИТ]", "🟡": "[ВЫСОК]", "🟢": "[НИЗК]",
+    "✅": "[OK]", "❌": "[НЕТ]", "⚠️": "[!]", "⚠": "[!]",
+    "📋": "", "📊": "", "📈": "", "📉": "",
+    "💡": "", "🎯": "", "🔑": "", "🏦": "",
+}
+
+def _pdf_safe(text: str) -> str:
+    """Strip emoji and control characters that break fpdf2 rendering."""
+    for ch, repl in _EMOJI_MAP.items():
+        text = text.replace(ch, repl)
+    return _EMOJI_RE.sub("", text)
+
+FONTS_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "fonts"))
+REPORTS_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "reports"))
 
 
 class ReportPDF:
@@ -48,22 +69,26 @@ class ReportPDF:
         self.pdf.set_font(self.font, "B", 14)
         self.pdf.set_text_color(26, 43, 74)
         self.pdf.ln(5)
-        self.pdf.cell(0, 10, heading, ln=True)
+        self.pdf.cell(0, 10, _pdf_safe(heading), ln=True)
         self.pdf.set_draw_color(59, 130, 246)
         self.pdf.line(10, self.pdf.get_y(), 60, self.pdf.get_y())
         self.pdf.ln(3)
         self.pdf.set_font(self.font, "", 10)
         self.pdf.set_text_color(30, 41, 59)
-        self.pdf.multi_cell(0, 6, text)
+        self.pdf.multi_cell(0, 6, _pdf_safe(text))
         self.pdf.ln(3)
 
     def add_bullet_list(self, items: list[str]):
         self.pdf.set_font(self.font, "", 10)
         self.pdf.set_text_color(30, 41, 59)
+        lm = self.pdf.l_margin
         for item in items:
-            self.pdf.cell(5)
-            self.pdf.cell(5, 6, chr(8226))
-            self.pdf.multi_cell(0, 6, f" {item}")
+            self.pdf.set_x(lm)
+            self.pdf.cell(6, 6, chr(8226))
+            self.pdf.set_x(lm + 8)
+            # Truncate very long items to avoid rendering errors
+            text = str(item)[:300]
+            self.pdf.multi_cell(0, 6, text)
         self.pdf.ln(3)
 
     def add_metrics_box(self, metrics: dict[str, str]):
@@ -74,9 +99,9 @@ class ReportPDF:
         self.pdf.ln(4)
         for key, val in metrics.items():
             self.pdf.set_font(self.font, "B", 10)
-            self.pdf.cell(60, 7, f"  {key}:", ln=False)
+            self.pdf.cell(60, 7, _pdf_safe(f"  {key}:"), ln=False)
             self.pdf.set_font(self.font, "", 10)
-            self.pdf.cell(0, 7, str(val), ln=True)
+            self.pdf.cell(0, 7, _pdf_safe(str(val)), ln=True)
         self.pdf.ln(5)
 
     def add_table(self, headers: list[str], rows: list[list[str]]):
@@ -98,7 +123,7 @@ class ReportPDF:
             else:
                 self.pdf.set_fill_color(255, 255, 255)
             for cell_val in row:
-                self.pdf.cell(col_w, 7, str(cell_val), border=1, align="C", fill=True)
+                self.pdf.cell(col_w, 7, _pdf_safe(str(cell_val)), border=1, align="C", fill=True)
             self.pdf.ln()
         self.pdf.ln(5)
 
