@@ -503,13 +503,11 @@ async def route_stream(skill_id: str, message: str, session_id: str, attachment_
             else:
                 yield {"data": _json.dumps({"type": "status", "content": "Данные из базы знаний загружены"})}
 
-            # Step 3: Show LLM generation step
+            # Step 3: Buffer LLM response (need to parse TABLE/CHART tags)
             yield {"data": _json.dumps({"type": "status", "content": "... Формирую ответ на основе данных"})}
 
             async for chunk in llm_client.stream(system_prompt, messages):
                 full_text += chunk
-                yield {"data": _json.dumps({"type": "text_delta", "content": chunk})}
-            yield {"data": _json.dumps({"type": "text_done"})}
         else:
             # ReAct agent stream for complex skills
             from app.services.react_agent import run_react_agent_stream
@@ -531,34 +529,33 @@ async def route_stream(skill_id: str, message: str, session_id: str, attachment_
 
         verified_text = full_text
 
-        # 6. Parse and stream response (only for ReAct path — RAG already streamed above)
-        if skill_id not in SIMPLE_SKILLS:
-            from app.services.response_parser import _parse_table, _parse_chart
-            tag_pattern = re.compile(r'(<TABLE>.*?</TABLE>|<CHART>.*?</CHART>)', re.DOTALL)
+        # 6. Parse and stream response — split TABLE/CHART tags from text
+        from app.services.response_parser import _parse_table, _parse_chart
+        tag_pattern = re.compile(r'(<TABLE>.*?</TABLE>|<CHART>.*?</CHART>)', re.DOTALL)
 
-            parts = tag_pattern.split(verified_text)
+        parts = tag_pattern.split(verified_text)
 
-            for part in parts:
-                part_stripped = part.strip()
-                if not part_stripped:
-                    continue
+        for part in parts:
+            part_stripped = part.strip()
+            if not part_stripped:
+                continue
 
-                if part_stripped.startswith("<TABLE>") and part_stripped.endswith("</TABLE>"):
-                    yield {"data": json.dumps({"type": "text_done"})}
-                    block = _parse_table(part_stripped)
-                    if block:
-                        yield {"data": json.dumps({"type": "table", "data": block.data}, ensure_ascii=False)}
-                elif part_stripped.startswith("<CHART>") and part_stripped.endswith("</CHART>"):
-                    yield {"data": json.dumps({"type": "text_done"})}
-                    block = _parse_chart(part_stripped)
-                    if block:
-                        yield {"data": json.dumps({"type": "chart", "data": block.data}, ensure_ascii=False)}
-                else:
-                    chunk_size = 500
-                    for i in range(0, len(part_stripped), chunk_size):
-                        chunk = part_stripped[i:i+chunk_size]
-                        yield {"data": json.dumps({"type": "text_delta", "content": chunk})}
-                    yield {"data": json.dumps({"type": "text_done"})}
+            if part_stripped.startswith("<TABLE>") and part_stripped.endswith("</TABLE>"):
+                yield {"data": json.dumps({"type": "text_done"})}
+                block = _parse_table(part_stripped)
+                if block:
+                    yield {"data": json.dumps({"type": "table", "data": block.data}, ensure_ascii=False)}
+            elif part_stripped.startswith("<CHART>") and part_stripped.endswith("</CHART>"):
+                yield {"data": json.dumps({"type": "text_done"})}
+                block = _parse_chart(part_stripped)
+                if block:
+                    yield {"data": json.dumps({"type": "chart", "data": block.data}, ensure_ascii=False)}
+            else:
+                chunk_size = 500
+                for i in range(0, len(part_stripped), chunk_size):
+                    chunk = part_stripped[i:i+chunk_size]
+                    yield {"data": json.dumps({"type": "text_delta", "content": chunk})}
+                yield {"data": json.dumps({"type": "text_done"})}
 
         # 7. Auto-generate PDF
         all_blocks = parse_llm_response(verified_text)
