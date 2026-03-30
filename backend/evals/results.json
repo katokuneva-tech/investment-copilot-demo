@@ -9,8 +9,8 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 39.3,
-    "response_length": 611
+    "elapsed_sec": 26.0,
+    "response_length": 1760
   },
   {
     "id": "pa_debt",
@@ -23,8 +23,8 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 40.6,
-    "response_length": 560
+    "elapsed_sec": 19.4,
+    "response_length": 1245
   },
   {
     "id": "pa_dividends",
@@ -36,8 +36,8 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 20.4,
-    "response_length": 403
+    "elapsed_sec": 25.9,
+    "response_length": 1883
   },
   {
     "id": "pa_sectors",
@@ -50,8 +50,8 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 129.5,
-    "response_length": 1849
+    "elapsed_sec": 61.4,
+    "response_length": 1411
   },
   {
     "id": "pa_ipo",
@@ -63,21 +63,21 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 48.2,
-    "response_length": 826
+    "elapsed_sec": 23.3,
+    "response_length": 1641
   },
   {
     "id": "pa_events",
     "skill_id": "portfolio_analytics",
-    "passed": false,
-    "keyword_pass": false,
+    "passed": true,
+    "keyword_pass": true,
     "keyword_results": {
-      "Элемент": false
+      "Элемент": true
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 108.8,
-    "response_length": 1571
+    "elapsed_sec": 68.6,
+    "response_length": 2509
   },
   {
     "id": "pa_holding",
@@ -86,40 +86,40 @@
     "keyword_pass": false,
     "keyword_results": {
       "2.9": false,
-      "трлн": false
+      "трлн": true
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 128.5,
-    "response_length": 2760
+    "elapsed_sec": 37.2,
+    "response_length": 3033
   },
   {
     "id": "pa_overview",
     "skill_id": "portfolio_analytics",
-    "passed": false,
-    "keyword_pass": false,
+    "passed": true,
+    "keyword_pass": true,
     "keyword_results": {
-      "23": false,
+      "23": true,
       "компан": true
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 177.9,
-    "response_length": 1604
+    "elapsed_sec": 53.9,
+    "response_length": 2161
   },
   {
     "id": "ia_project",
     "skill_id": "investment_analysis",
-    "passed": false,
-    "keyword_pass": false,
+    "passed": true,
+    "keyword_pass": true,
     "keyword_results": {
-      "NPV": false,
-      "IRR": false
+      "NPV": true,
+      "IRR": true
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 44.3,
-    "response_length": 536
+    "elapsed_sec": 66.5,
+    "response_length": 2045
   },
   {
     "id": "ia_flags",
@@ -132,8 +132,8 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 70.7,
-    "response_length": 735
+    "elapsed_sec": 111.3,
+    "response_length": 745
   },
   {
     "id": "mr_logistics",
@@ -145,8 +145,8 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 86.9,
-    "response_length": 2542
+    "elapsed_sec": 76.2,
+    "response_length": 3975
   },
   {
     "id": "mr_players",
@@ -158,8 +158,8 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 16.6,
-    "response_length": 296
+    "elapsed_sec": 34.1,
+    "response_length": 3287
   },
   {
     "id": "bm_compare",
@@ -171,8 +171,8 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 187.8,
-    "response_length": 2304
+    "elapsed_sec": 61.5,
+    "response_length": 2413
   },
   {
     "id": "bm_segezha",
@@ -184,21 +184,21 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 147.9,
-    "response_length": 368
+    "elapsed_sec": 35.6,
+    "response_length": 2992
   },
   {
     "id": "ca_contradictions",
     "skill_id": "committee_advisor",
-    "passed": true,
-    "keyword_pass": true,
+    "passed": false,
+    "keyword_pass": false,
     "keyword_results": {
-      "заполняемость": true
+      "заполняемость": false
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 467.8,
-    "response_length": 1825
+    "elapsed_sec": 88.7,
+    "response_length": 2100
   },
   {
     "id": "ca_risks",
@@ -210,22 +210,22 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 6.9,
-    "response_length": 587
+    "elapsed_sec": 99.6,
+    "response_length": 1235
   },
   {
     "id": "ca_recommendation",
     "skill_id": "committee_advisor",
-    "passed": false,
-    "keyword_pass": false,
+    "passed": true,
+    "keyword_pass": true,
     "keyword_results": {
       "за": true,
-      "против": false
+      "против": true
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 3.5,
-    "response_length": 276
+    "elapsed_sec": 119.0,
+    "response_length": 1425
   },
   {
     "id": "auto_routing",
@@ -237,8 +237,8 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 10.1,
-    "response_length": 331
+    "elapsed_sec": 29.2,
+    "response_length": 1049
   },
   {
     "id": "memory_test",
@@ -250,8 +250,8 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 35.3,
-    "response_length": 440
+    "elapsed_sec": 72.4,
+    "response_length": 1258
   },
   {
     "id": "pa_mts_details",
@@ -264,7 +264,7 @@
     },
     "judge_pass": true,
     "judge_detail": "Skipped",
-    "elapsed_sec": 61.4,
-    "response_length": 1689
+    "elapsed_sec": 51.8,
+    "response_length": 2091
   }
 ]

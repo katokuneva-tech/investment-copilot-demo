@@ -480,13 +480,32 @@ async def route_stream(skill_id: str, message: str, session_id: str, attachment_
         full_text = ""
         if skill_id in SIMPLE_SKILLS:
             # Direct RAG: gather data, single LLM stream call
+            # Step 1: Show thinking
+            _skill_labels = {
+                "portfolio_analytics": "портфельную аналитику",
+                "benchmarking": "бенчмаркинг",
+                "market_research": "рыночные данные",
+            }
+            yield {"data": _json.dumps({"type": "status", "content": f"... Анализирую запрос: {_skill_labels.get(skill_id, skill_id)}"})}
+
+            # Step 2: Gather tool data and show tool call
             tool_data = _gather_tool_data(skill_id, message)
             if tool_data:
+                # Show what tools were called
+                tool_call_desc = f"data_query(entity=\"all\", metric=\"{message[:40]}\")"
+                yield {"data": _json.dumps({"type": "status", "content": f">> {tool_call_desc}"})}
+                yield {"data": _json.dumps({"type": "status", "content": f"Данные получены ({len(tool_data)} символов)"})}
+
                 messages[-1] = {
                     "role": "user",
                     "content": messages[-1]["content"] + f"\n\n---\n\nСТРУКТУРИРОВАННЫЕ ДАННЫЕ ИЗ ИНСТРУМЕНТОВ:\n{tool_data[:20000]}"
                 }
-            yield {"data": _json.dumps({"type": "status", "content": "Анализирую данные..."})}
+            else:
+                yield {"data": _json.dumps({"type": "status", "content": "Данные из базы знаний загружены"})}
+
+            # Step 3: Show LLM generation step
+            yield {"data": _json.dumps({"type": "status", "content": "... Формирую ответ на основе данных"})}
+
             async for chunk in llm_client.stream(system_prompt, messages):
                 full_text += chunk
                 yield {"data": _json.dumps({"type": "text_delta", "content": chunk})}
