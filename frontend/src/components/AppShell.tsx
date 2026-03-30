@@ -101,7 +101,8 @@ export default function AppShell() {
         onSelectCommittee={() => setView('committee')}
         isCommitteeActive={view === 'committee'}
         isAdmin={userRole === 'admin'}
-        onSelectAnalytics={() => setView('analytics')}
+        isDemo={userRole === 'demo'}
+        onSelectAnalytics={userRole === 'admin' ? () => setView('analytics') : undefined}
         isAnalyticsActive={view === 'analytics'}
         onLogout={handleLogout}
       />

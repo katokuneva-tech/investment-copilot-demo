@@ -20,6 +20,7 @@ interface SidebarProps {
   onSelectCommittee: () => void;
   isCommitteeActive: boolean;
   isAdmin?: boolean;
+  isDemo?: boolean;
   onSelectAnalytics?: () => void;
   isAnalyticsActive?: boolean;
   onLogout?: () => void;
@@ -120,6 +121,7 @@ export default function Sidebar({
   onSelectCommittee,
   isCommitteeActive,
   isAdmin = false,
+  isDemo = false,
   onSelectAnalytics,
   isAnalyticsActive = false,
   onLogout,
@@ -233,7 +235,7 @@ export default function Sidebar({
 
       {/* Bottom: Model + User */}
       <div className="border-t border-gray-100">
-        <ModelSwitcher isAdmin={isAdmin} />
+        {!isDemo && <ModelSwitcher isAdmin={isAdmin} />}
         <div className="px-4 py-3 border-t border-gray-50 flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
             <User size={16} className="text-gray-500" />
