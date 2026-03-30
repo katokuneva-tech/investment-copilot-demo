@@ -49,7 +49,7 @@ export interface ChartData {
   title: string;
   x_key: string;
   series: ChartSeries[];
-  data: Record<string, any>[];
+  data: Record<string, string | number>[];
 }
 
 export interface PdfLinkData {

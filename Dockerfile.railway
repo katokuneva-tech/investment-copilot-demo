@@ -1,4 +1,9 @@
+# Production backend: Railway (this file) + Vercel (frontend/vercel.json)
+# Frontend is deployed as static export on Vercel, API requests proxied to Railway
 FROM python:3.12-slim
+
+RUN useradd -m -s /bin/bash copilot
+
 WORKDIR /app
 
 COPY backend/requirements.txt ./
@@ -6,6 +11,12 @@ RUN pip install --no-cache-dir -r requirements.txt pyjwt
 
 COPY backend/ ./
 
+RUN chown -R copilot:copilot /app
+USER copilot
+
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT:-8000}/api/health')" || exit 1
 
 CMD ["python", "start.py"]

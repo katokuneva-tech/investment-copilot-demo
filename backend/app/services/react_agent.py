@@ -1,7 +1,7 @@
 """ReAct agent: Reason + Act with tool use and verification."""
 import json, re
 from app.services.llm_client import llm_client
-from app.services.tools import get_tools_description, execute_tool, cross_doc_check
+from app.services.tools import get_tools_description, execute_tool
 
 REACT_SYSTEM = """Ты — аналитический AI-агент АФК Система. Ты ОБЯЗАН использовать инструменты для получения данных перед ответом.
 
@@ -75,7 +75,7 @@ async def run_react_agent(
     tools_desc = get_tools_description()
     system = REACT_SYSTEM.format(tools=tools_desc) + "\n\n" + skill_prompt
 
-    ctx_limit = 40000 if skill_id in DOCUMENT_HEAVY_SKILLS else 15000
+    ctx_limit = 60000 if skill_id in DOCUMENT_HEAVY_SKILLS else 15000
     if context:
         system += f"\n\nКОНТЕКСТ ДОКУМЕНТОВ:\n{context[:ctx_limit]}"
 
@@ -115,8 +115,8 @@ async def run_react_agent(
 
             # Format observation — compact
             result_str = json.dumps(result, ensure_ascii=False, indent=2)
-            if len(result_str) > 4000:
-                result_str = result_str[:4000] + "\n... (truncated)"
+            if len(result_str) > 6000:
+                result_str = result_str[:6000] + "\n... (truncated)"
 
             messages.append({"role": "user", "content": f"OBSERVATION:\n{result_str}\n\nЕсли данных достаточно — дай ANSWER."})
 
@@ -128,63 +128,10 @@ async def run_react_agent(
             else:
                 answer = response
 
-            # VERIFICATION: Check all numbers in answer against tool results
-            answer = await _verify_answer(answer, tool_log, context)
-
             return answer, tool_log
 
     # Max iterations reached — return what we have
     return response, tool_log
-
-
-async def _verify_answer(answer: str, tool_log: list[dict], context: str) -> str:
-    """Verify all numbers in the answer against tool results.
-
-    If a number is not found in any tool result, mark it with warning.
-    """
-    # Collect all numbers from tool results
-    verified_numbers = set()
-    for entry in tool_log:
-        result_str = json.dumps(entry.get("result", {}), ensure_ascii=False)
-        # Extract all numbers from tool results
-        for num in re.findall(r'[\d]+[.,]?\d*', result_str):
-            verified_numbers.add(num.replace(',', '.'))
-
-    # Also collect numbers from the original context
-    for num in re.findall(r'[\d]+[.,]?\d*', context[:60000]):
-        verified_numbers.add(num.replace(',', '.'))
-
-    # Find numbers in the answer
-    def check_number(match):
-        num = match.group(0)
-        clean_num = num.replace(',', '.').rstrip('%').rstrip('x').rstrip('\u0445')
-        # Allow small integers (1-10) and common values without verification
-        try:
-            if float(clean_num) < 10 and '.' not in clean_num:
-                return num  # Don't flag small integers
-        except ValueError:
-            return num
-
-        if clean_num in verified_numbers or clean_num.rstrip('0').rstrip('.') in verified_numbers:
-            return num  # Verified
-
-        # Check if close to any verified number (within 1%)
-        try:
-            n = float(clean_num)
-            for vn in verified_numbers:
-                try:
-                    if abs(float(vn) - n) / max(abs(n), 1) < 0.01:
-                        return num  # Close enough
-                except ValueError:
-                    continue
-        except ValueError:
-            pass
-
-        return num  # Don't add warning markers in the text, let reflection handle it
-
-    # We don't modify the answer text — instead we log unverified numbers
-    # The reflection step will catch hallucinations
-    return answer
 
 
 async def run_react_agent_stream(
@@ -199,7 +146,7 @@ async def run_react_agent_stream(
     tools_desc = get_tools_description()
     system = REACT_SYSTEM.format(tools=tools_desc) + "\n\n" + skill_prompt
 
-    ctx_limit = 40000 if skill_id in DOCUMENT_HEAVY_SKILLS else 15000
+    ctx_limit = 60000 if skill_id in DOCUMENT_HEAVY_SKILLS else 15000
     if context:
         system += f"\n\nКОНТЕКСТ ДОКУМЕНТОВ:\n{context[:ctx_limit]}"
 
@@ -223,12 +170,12 @@ async def run_react_agent_stream(
             yield {"type": "tool_call", "content": tool_call}
 
             result = execute_tool(tool_call, docs_context=context[:10000])
-            yield {"type": "tool_result", "content": json.dumps(result, ensure_ascii=False)[:1000]}
+            yield {"type": "tool_result", "content": json.dumps(result, ensure_ascii=False)[:2000]}
 
             messages.append({"role": "assistant", "content": response})
             result_str = json.dumps(result, ensure_ascii=False, indent=2)
-            if len(result_str) > 4000:
-                result_str = result_str[:4000] + "\n... (truncated)"
+            if len(result_str) > 6000:
+                result_str = result_str[:6000] + "\n... (truncated)"
             messages.append({"role": "user", "content": f"OBSERVATION:\n{result_str}\n\nЕсли данных достаточно — дай ANSWER."})
         else:
             answer_match = re.search(r'ANSWER:\s*(.*)', response, re.DOTALL)

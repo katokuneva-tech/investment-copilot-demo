@@ -10,7 +10,10 @@ if _env_path.exists():
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip())
+            k, v = key.strip(), value.strip()
+            # Override empty env vars too (setdefault won't replace "")
+            if not os.environ.get(k):
+                os.environ[k] = v
 
 
 class LLMClient:

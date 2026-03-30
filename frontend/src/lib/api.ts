@@ -81,9 +81,11 @@ export async function streamChat(
 
     // Stream ended without explicit done
     onEvent({ type: 'done' });
-  } catch (err: any) {
-    if (err.name !== 'AbortError') {
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name !== 'AbortError') {
       onError(err);
+    } else if (!(err instanceof Error)) {
+      onError(new Error(String(err)));
     }
   }
 }

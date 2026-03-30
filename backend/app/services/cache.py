@@ -27,8 +27,8 @@ def _get_conn() -> sqlite3.Connection:
 _conn = _get_conn()
 
 
-def cache_key(skill_id: str, message: str, doc_ids: list[str]) -> str:
-    raw = f"{skill_id}:{message.lower().strip()}:{':'.join(sorted(doc_ids))}"
+def cache_key(skill_id: str, message: str, doc_ids: list[str], provider: str = "") -> str:
+    raw = f"{provider}:{skill_id}:{message.lower().strip()}:{':'.join(sorted(doc_ids))}"
     return hashlib.md5(raw.encode()).hexdigest()
 
 

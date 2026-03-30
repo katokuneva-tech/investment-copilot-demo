@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-lint:
+    name: Backend Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install flake8
+      - run: flake8 app/ --max-line-length=150 --ignore=E501,W503,E402
+
+  backend-syntax:
+    name: Backend Syntax Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m py_compile app/main.py
+      - run: python -m py_compile app/services/skill_router.py
+      - run: python -m py_compile app/services/react_agent.py
+      - run: python -m py_compile app/services/reflection.py
+      - run: python -m py_compile app/services/tools.py
+      - run: python -m py_compile app/services/llm_client.py
+
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: STATIC_EXPORT=true npm run build
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f Dockerfile.railway -t investment-copilot-api .
+
+  kb-validation:
+    name: Knowledge Base Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -c "import json; data=json.load(open('backend/knowledge_base.json')); assert 'overview' in data; assert 'portfolio' in data; assert 'financials' in data; assert 'macro_context' in data; print(f'KB valid: {len(data[\"portfolio\"])} companies')"

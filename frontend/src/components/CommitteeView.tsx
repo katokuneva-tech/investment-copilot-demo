@@ -3,8 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Shield, Upload, Eye, EyeOff, Trash2, FileText, FileSpreadsheet, File,
-  Search, AlertTriangle, ClipboardCheck, FileEdit, HelpCircle,
-  ScrollText, Send, Square, X, Zap,
+  Search, Send, Square, X,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/constants';
 import { useDocuments } from '@/hooks/useDocuments';
@@ -12,6 +11,8 @@ import { useChat } from '@/hooks/useChat';
 import { KBDocument } from '@/lib/types';
 import { fetchDocumentContent } from '@/lib/api';
 import MessageBubble from './MessageBubble';
+import QuickActions from './QuickActions';
+import PreAnalysis from './PreAnalysis';
 
 const FILE_ICONS: Record<string, React.ElementType> = {
   pdf: FileText, docx: FileText, json: FileText, md: FileText, txt: FileText,
@@ -24,25 +25,6 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const QUICK_ACTIONS = [
-  { id: 'pre_analysis', icon: Zap, label: 'Pre-Analysis Brief', color: 'text-[#E11D48]',
-    prompt: 'Проведи Pre-Analysis Brief: инвентаризация документов, ключевые метрики сделки (CAPEX, IRR, NPV, payback), перекрёстная проверка данных между документами, red flags и рекомендации. Будь скептичен.' },
-  { id: 'contradictions', icon: Search, label: 'Противоречия', color: 'text-red-500',
-    prompt: 'Найди все противоречия и расхождения между загруженными документами. Сравни цифры в презентации, финансовой модели, отчёте оценщика и юридическом DD. Покажи таблицу.' },
-  { id: 'risks', icon: AlertTriangle, label: 'Матрица рисков', color: 'text-amber-500',
-    prompt: 'Составь полную матрицу рисков по материалам сделки. Для каждого риска укажи: название, критичность, вероятность, влияние на NPV/IRR, источник (документ и страница). Покажи таблицу.' },
-  { id: 'recommendation', icon: ClipboardCheck, label: 'Рекомендация', color: 'text-green-500',
-    prompt: 'Подготовь рекомендацию по сделке: структурированные аргументы ЗА и ПРОТИВ. В конце дай итоговое заключение с условиями.' },
-  { id: 'summary', icon: ScrollText, label: 'Executive Summary', color: 'text-blue-500',
-    prompt: 'Подготовь executive summary по материалам сделки на 1 страницу: суть сделки, стороны, объём инвестиций, ключевые финансовые параметры (NPV, IRR, payback), основные условия, краткая оценка.' },
-  { id: 'dd_checklist', icon: FileEdit, label: 'Чеклист DD', color: 'text-purple-500',
-    prompt: 'Проверь полноту due diligence: какие документы загружены, какие обычно требуются для инвесткомитета но отсутствуют, есть ли red flags в имеющихся документах. Покажи таблицу с чеклистом.' },
-  { id: 'questions', icon: HelpCircle, label: 'Вопросы комитета', color: 'text-cyan-500',
-    prompt: 'Какие вопросы должен задать инвестиционный комитет менеджменту проекта? Составь пронумерованный список из 10-15 критичных вопросов, сгруппированных по темам: финансы, рынок, риски, управление.' },
-  { id: 'protocol', icon: FileText, label: 'Драфт протокола', color: 'text-gray-600',
-    prompt: 'Сгенерируй драфт протокола заседания инвестиционного комитета АФК Система по рассматриваемой сделке. Формат: дата, участники, повестка, ключевые замечания, решение (условно положительное с перечнем условий), ответственные, сроки.' },
-];
-
 export default function CommitteeView() {
   const { documents: allDocs, upload: uploadDoc, remove: removeDocs, toggle: toggleDoc } = useDocuments();
   const {
@@ -54,8 +36,6 @@ export default function CommitteeView() {
   const [viewDoc, setViewDoc] = useState<{ doc: KBDocument; content: string } | null>(null);
   const [loadingContent, setLoadingContent] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [preAnalysis, setPreAnalysis] = useState<string | null>(null);
-  const [isPreAnalysisLoading, setIsPreAnalysisLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -136,13 +116,6 @@ export default function CommitteeView() {
 
   const handleDelete = (doc: KBDocument) => {
     if (window.confirm(`Удалить "${doc.original_name}"?`)) removeDocs(doc.id);
-  };
-
-  const handlePreAnalysis = async () => {
-    setIsPreAnalysisLoading(true);
-    // Send as a chat message so it renders with full markdown
-    sendMessage('Проведи Pre-Analysis Brief: инвентаризация документов, ключевые метрики сделки, перекрёстная проверка данных, red flags и рекомендации');
-    setIsPreAnalysisLoading(false);
   };
 
   return (
@@ -239,25 +212,7 @@ export default function CommitteeView() {
           </div>
 
           {/* Quick Actions */}
-          <div className="border-t border-gray-100 mt-4 pt-3">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-              Быстрые действия
-            </p>
-            <div className="space-y-1">
-              {QUICK_ACTIONS.map(action => {
-                const Icon = action.icon;
-                return (
-                  <button key={action.id}
-                    onClick={() => handleQuickAction(action.prompt)}
-                    disabled={isStreaming}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors text-left">
-                    <Icon size={14} className={action.color} />
-                    <span>{action.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <QuickActions isStreaming={isStreaming} onAction={handleQuickAction} />
         </div>
       </div>
 
@@ -266,13 +221,7 @@ export default function CommitteeView() {
         {/* Chat messages */}
         <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400">
-              <Shield size={48} className="mb-4 opacity-20" />
-              <p className="text-sm font-medium text-gray-500">Готов к анализу</p>
-              <p className="text-xs mt-1 text-center max-w-sm">
-                Выберите быстрое действие слева или задайте свободный вопрос по материалам комитета
-              </p>
-            </div>
+            <PreAnalysis />
           ) : (
             <>
               {messages.map(msg => <MessageBubble key={msg.id} message={msg} />)}

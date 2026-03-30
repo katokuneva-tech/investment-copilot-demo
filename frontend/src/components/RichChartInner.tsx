@@ -13,7 +13,13 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts';
-import { ChartData } from '@/lib/types';
+import { ChartData, ChartSeries } from '@/lib/types';
+
+type ChartDataPoint = Record<string, string | number>;
+
+interface NormalizedSeries extends ChartSeries {
+  data_key?: string;
+}
 
 interface RichChartInnerProps {
   data: ChartData;
@@ -25,18 +31,18 @@ export default function RichChartInner({ data }: RichChartInnerProps) {
   if (!rawChartData || !rawSeries) return null;
 
   // Normalize series: backend may send "data_key" instead of "key"
-  const series = rawSeries.map((s: any) => ({
+  const series: NormalizedSeries[] = rawSeries.map((s: ChartSeries & { data_key?: string }) => ({
     ...s,
     key: s.key || s.data_key || s.name?.toLowerCase().replace(/\s+/g, '_') || 'value',
   }));
 
   // Normalize chart data: parse string values to numbers, filter out non-numeric entries
-  const chartData = rawChartData.map((point: Record<string, any>) => {
-    const normalized: Record<string, any> = { [x_key]: point[x_key] };
+  const chartData = rawChartData.map((point: ChartDataPoint) => {
+    const normalized: ChartDataPoint = { [x_key]: point[x_key] };
     for (const s of series) {
-      let val = point[s.key];
-      if (val === undefined && (s as any).data_key) {
-        val = point[(s as any).data_key];
+      let val: string | number | undefined = point[s.key];
+      if (val === undefined && s.data_key) {
+        val = point[s.data_key];
       }
       if (typeof val === 'string') {
         if (val === 'н/д' || val === 'N/A' || val === '-') {

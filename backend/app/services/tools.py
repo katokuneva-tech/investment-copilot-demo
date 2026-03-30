@@ -8,8 +8,8 @@ def _get_kb():
     global _kb
     if _kb is None:
         import os
-        kb_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "knowledge_base.json")
-        for p in [kb_path, "/Users/e.okuneva/Desktop/knowledge_base.json"]:
+        kb_path = os.path.join(os.path.dirname(__file__), "..", "..", "knowledge_base.json")
+        for p in [kb_path]:
             try:
                 with open(os.path.normpath(p), "r") as f:
                     _kb = json.load(f)
@@ -68,6 +68,10 @@ def data_query(entity: str, metric: str = "", years: list[str] = None) -> dict:
                     results["data"].append({"parameter": k, "value": v})
         else:
             results["data"] = [{"parameter": k, "value": v} for k, v in overview.items()]
+        # Also include holding_summary for structured access
+        holding = kb.get("holding_summary", {})
+        if holding:
+            results["data"].append({"type": "holding_summary", **holding})
         return results
 
     # Search portfolio
@@ -124,6 +128,15 @@ def data_query(entity: str, metric: str = "", years: list[str] = None) -> dict:
             if entity.lower() == "all" or entity.lower() in json.dumps(sec, ensure_ascii=False).lower():
                 results["data"].append({"type": "sector", **sec})
 
+    # Search sector_dynamics (detailed sector data with players, trends)
+    sector_dynamics = kb.get("sector_dynamics", {})
+    if isinstance(sector_dynamics, dict):
+        for sec_name, sec_data in sector_dynamics.items():
+            if isinstance(sec_data, dict):
+                sec_str = json.dumps(sec_data, ensure_ascii=False).lower()
+                if entity.lower() == "all" or entity.lower() in sec_name.lower() or entity.lower() in sec_str:
+                    results["data"].append({"type": "sector_dynamics", "sector": sec_name, **sec_data})
+
     # Search macro context if available
     macro = kb.get("macro_context", {})
     if macro and entity.lower() in ["макро", "macro", "ставка", "ставки", "инфляция", "all"]:
@@ -135,6 +148,27 @@ def data_query(entity: str, metric: str = "", years: list[str] = None) -> dict:
         for prof_name, profile in profiles.items():
             if entity.lower() in prof_name.lower() or prof_name.lower() in entity.lower():
                 results["data"].append({"type": "profile", "company": prof_name, **profile})
+
+    # Search holding summary
+    holding = kb.get("holding_summary", {})
+    if holding and entity.lower() in ["overview", "обзор", "холдинг", "афк", "all"]:
+        results["data"].append({"type": "holding_summary", **holding})
+
+    # Search revenue growth ranking
+    growth = kb.get("revenue_growth_ranking", [])
+    if growth and (entity.lower() == "all" or any(w in metric.lower() for w in ["рост", "выручк", "growth", "темп"])):
+        results["data"].append({"type": "revenue_growth_ranking", "ranking": growth})
+
+    # Search investment projects
+    projects = kb.get("investment_projects", {})
+    if isinstance(projects, dict):
+        for proj_key, proj_data in projects.items():
+            if isinstance(proj_data, dict):
+                proj_str = json.dumps(proj_data, ensure_ascii=False).lower()
+                if entity.lower() == "all" or entity.lower() in proj_str or any(
+                    w in entity.lower() for w in ["проект", "инвест", "хаб", "логист"]
+                ):
+                    results["data"].append({"type": "investment_project", "key": proj_key, **proj_data})
 
     return results
 
