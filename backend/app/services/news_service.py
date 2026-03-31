@@ -2,30 +2,74 @@
 import asyncio
 import hashlib
 import json
+import re
 import time
 from datetime import datetime
 from urllib.parse import urlparse
 
-from app.services.web_search import web_search
 from app.services.llm_client import llm_client
 
-# Portfolio companies with search aliases
+# Portfolio companies with search aliases and keywords for relevance filtering
 PORTFOLIO_COMPANIES = {
-    "afk": {"name": "АФК Система", "queries": ["АФК Система акции новости инвестиции"]},
-    "mts": {"name": "МТС", "queries": ["МТС MOEX акции телеком новости"]},
-    "ozon": {"name": "Ozon", "queries": ["Ozon маркетплейс акции новости Россия"]},
-    "segezha": {"name": "Segezha Group", "queries": ["Сегежа Segezha Group лесопромышленный новости акции"]},
-    "etalon": {"name": "Эталон", "queries": ["Группа Эталон девелопер новости акции Россия"]},
-    "medsi": {"name": "МЕДСИ", "queries": ["МЕДСИ группа компаний клиники IPO новости"]},
-    "binnopharm": {"name": "Биннофарм Групп", "queries": ["Биннофарм Групп фармацевтика новости IPO"]},
-    "step": {"name": "СТЕПЬ", "queries": ["Агрохолдинг СТЕПЬ АФК Система новости"]},
-    "cosmos": {"name": "Cosmos Hotel Group", "queries": ["Cosmos Hotel Group Интурист гостиницы новости"]},
+    "afk": {
+        "name": "АФК Система",
+        "queries": ["АФК Система инвестиции холдинг"],
+        "keywords": ["АФК", "Система", "Sistema"],
+    },
+    "mts": {
+        "name": "МТС",
+        "queries": ["МТС телеком акции"],
+        "keywords": ["МТС", "MTS"],
+    },
+    "ozon": {
+        "name": "Ozon",
+        "queries": ["Ozon маркетплейс акции"],
+        "keywords": ["Ozon", "Озон"],
+    },
+    "segezha": {
+        "name": "Segezha Group",
+        "queries": ["Сегежа Group лесопромышленный"],
+        "keywords": ["Сегежа", "Segezha"],
+    },
+    "etalon": {
+        "name": "Эталон",
+        "queries": ["Группа Эталон девелопер акции"],
+        "keywords": ["Эталон", "Etalon"],
+    },
+    "medsi": {
+        "name": "МЕДСИ",
+        "queries": ["МЕДСИ клиники медицина"],
+        "keywords": ["МЕДСИ", "Medsi"],
+    },
+    "binnopharm": {
+        "name": "Биннофарм Групп",
+        "queries": ["Биннофарм фармацевтика"],
+        "keywords": ["Биннофарм", "Binnopharm"],
+    },
+    "step": {
+        "name": "СТЕПЬ",
+        "queries": ["Агрохолдинг СТЕПЬ"],
+        "keywords": ["СТЕПЬ", "агрохолдинг"],
+    },
+    "cosmos": {
+        "name": "Cosmos Hotel Group",
+        "queries": ["Cosmos Hotel Group гостиницы Россия"],
+        "keywords": ["Cosmos Hotel", "Космос отель"],
+    },
 }
 
 # Cache
 _news_cache: dict = {}  # {articles, dashboard, fetched_at}
 _digest_cache: dict = {}  # {period: {digest, generated_at}}
+_refresh_lock: asyncio.Lock | None = None
 CACHE_TTL = 3600  # 1 hour
+
+
+def _get_lock() -> asyncio.Lock:
+    global _refresh_lock
+    if _refresh_lock is None:
+        _refresh_lock = asyncio.Lock()
+    return _refresh_lock
 
 
 def _cache_valid() -> bool:
@@ -63,30 +107,62 @@ def _get_kb_summary() -> str:
         return ""
 
 
+def _is_relevant(title: str, snippet: str, keywords: list[str]) -> bool:
+    """Check if article is relevant to the company by keyword match."""
+    text = (title + " " + snippet).lower()
+    return any(kw.lower() in text for kw in keywords)
+
+
 async def _fetch_company_news(slug: str, info: dict) -> list[dict]:
-    """Fetch news for a single company."""
+    """Fetch news for a single company using DDG news search."""
     query = info["queries"][0]
+    keywords = info.get("keywords", [info["name"]])
     try:
-        results = await web_search(query, max_results=5)
+        from duckduckgo_search import DDGS
+
+        loop = asyncio.get_event_loop()
+
+        def _search():
+            with DDGS() as ddgs:
+                # Use news() for actual news articles, with Russian region
+                try:
+                    results = list(ddgs.news(query, region="ru-ru", max_results=8))
+                except Exception:
+                    # Fallback to text search if news() fails
+                    results = list(ddgs.text(query, region="ru-ru", max_results=8))
+            return results
+
+        results = await loop.run_in_executor(None, _search)
+
         articles = []
         for r in results:
-            if not r.get("url") or r.get("title", "").startswith("Search error"):
+            title = r.get("title", "")
+            url = r.get("url") or r.get("href", "")
+            snippet = r.get("body", "") or r.get("snippet", "")
+            date = r.get("date", "")
+
+            if not url or title.startswith("Search error"):
                 continue
+
+            # Filter out irrelevant results
+            if not _is_relevant(title, snippet, keywords):
+                continue
+
             articles.append({
-                "id": _article_id(r["url"], r["title"]),
+                "id": _article_id(url, title),
                 "company_slug": slug,
                 "company_name": info["name"],
-                "title": r.get("title", ""),
-                "url": r.get("url", ""),
-                "snippet": r.get("snippet", ""),
-                "source": _extract_domain(r.get("url", "")),
-                "published_approx": "",
+                "title": title,
+                "url": url,
+                "snippet": snippet,
+                "source": _extract_domain(url),
+                "published_approx": date[:10] if date else "",
                 "sentiment": "neutral",
                 "summary": "",
                 "alert_type": None,
                 "portfolio_impact": None,
             })
-        return articles
+        return articles[:5]
     except Exception as e:
         print(f"[NEWS] Error fetching {slug}: {e}")
         return []
@@ -233,9 +309,21 @@ def get_dashboard_metrics(articles: list[dict]) -> dict:
     }
 
 
+async def _ensure_cache() -> None:
+    """Ensure cache is populated, with lock to prevent concurrent refreshes."""
+    if _cache_valid():
+        return
+    async with _get_lock():
+        # Double-check after acquiring lock
+        if _cache_valid():
+            return
+        await refresh_news()
+
+
 async def refresh_news() -> dict:
     """Fetch + analyze + cache. Returns full news response."""
     articles = await fetch_all_news()
+    print(f"[NEWS] Fetched {len(articles)} articles")
     articles = await _analyze_batch(articles)
     dashboard = get_dashboard_metrics(articles)
 
@@ -262,8 +350,7 @@ async def refresh_news() -> dict:
 
 async def get_news(company: str | None = None, sentiment: str | None = None, limit: int = 50) -> dict:
     """Get cached or fresh news, with optional filters."""
-    if not _cache_valid():
-        await refresh_news()
+    await _ensure_cache()
 
     articles = _news_cache.get("articles", [])
 
@@ -282,15 +369,13 @@ async def get_news(company: str | None = None, sentiment: str | None = None, lim
 
 async def get_dashboard() -> dict:
     """Get dashboard metrics."""
-    if not _cache_valid():
-        await refresh_news()
+    await _ensure_cache()
     return _news_cache.get("dashboard", {})
 
 
 async def get_alerts() -> list[dict]:
     """Get active alerts."""
-    if not _cache_valid():
-        await refresh_news()
+    await _ensure_cache()
     return _news_cache.get("dashboard", {}).get("alerts", [])
 
 
@@ -306,8 +391,7 @@ async def generate_digest(period: str = "day") -> dict:
     if cached and time.time() - cached.get("generated_at_ts", 0) < 1800:  # 30 min cache
         return cached
 
-    if not _cache_valid():
-        await refresh_news()
+    await _ensure_cache()
 
     articles = _news_cache.get("articles", [])
     if not articles:
