@@ -11,15 +11,15 @@ from app.services.llm_client import llm_client
 
 # Portfolio companies with search aliases
 PORTFOLIO_COMPANIES = {
-    "afk": {"name": "АФК Система", "queries": ["АФК Система новости", "AFK Sistema"]},
-    "mts": {"name": "МТС", "queries": ["МТС новости", "MTS PJSC"]},
-    "ozon": {"name": "Ozon", "queries": ["Ozon новости", "Ozon Holdings"]},
-    "segezha": {"name": "Segezha Group", "queries": ["Segezha Group новости", "Сегежа"]},
-    "etalon": {"name": "Эталон", "queries": ["Группа Эталон новости", "Etalon Group"]},
-    "medsi": {"name": "МЕДСИ", "queries": ["МЕДСИ клиники новости"]},
-    "binnopharm": {"name": "Биннофарм Групп", "queries": ["Биннофарм новости"]},
-    "step": {"name": "СТЕПЬ", "queries": ["Агрохолдинг СТЕПЬ новости"]},
-    "cosmos": {"name": "Cosmos Hotel Group", "queries": ["Cosmos Hotel Group новости"]},
+    "afk": {"name": "АФК Система", "queries": ["АФК Система акции новости инвестиции"]},
+    "mts": {"name": "МТС", "queries": ["МТС MOEX акции телеком новости"]},
+    "ozon": {"name": "Ozon", "queries": ["Ozon маркетплейс акции новости Россия"]},
+    "segezha": {"name": "Segezha Group", "queries": ["Сегежа Segezha Group лесопромышленный новости акции"]},
+    "etalon": {"name": "Эталон", "queries": ["Группа Эталон девелопер новости акции Россия"]},
+    "medsi": {"name": "МЕДСИ", "queries": ["МЕДСИ группа компаний клиники IPO новости"]},
+    "binnopharm": {"name": "Биннофарм Групп", "queries": ["Биннофарм Групп фармацевтика новости IPO"]},
+    "step": {"name": "СТЕПЬ", "queries": ["Агрохолдинг СТЕПЬ АФК Система новости"]},
+    "cosmos": {"name": "Cosmos Hotel Group", "queries": ["Cosmos Hotel Group Интурист гостиницы новости"]},
 }
 
 # Cache

@@ -30,15 +30,23 @@ export function useNews() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [feedData, dashData, companiesData] = await Promise.all([
+      // Load companies first (instant, static list)
+      const companiesData = await fetchNewsCompanies();
+      setCompanies(companiesData);
+
+      // Then load feed + dashboard (may trigger DuckDuckGo + LLM on first call)
+      const [feedResult, dashResult] = await Promise.allSettled([
         fetchNewsFeed(),
         fetchNewsDashboard(),
-        fetchNewsCompanies(),
       ]);
-      setArticles(feedData.articles || []);
-      setLastUpdated(feedData.last_updated || '');
-      setDashboard(dashData);
-      setCompanies(companiesData);
+
+      if (feedResult.status === 'fulfilled') {
+        setArticles(feedResult.value.articles || []);
+        setLastUpdated(feedResult.value.last_updated || '');
+      }
+      if (dashResult.status === 'fulfilled') {
+        setDashboard(dashResult.value);
+      }
     } catch (err) {
       console.error('[useNews] Load error:', err);
     } finally {
