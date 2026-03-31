@@ -1,66 +1,70 @@
-"""News monitoring service — fetch, analyze, and digest portfolio news."""
+"""News monitoring service — RSS feeds from Russian financial media + AI analysis."""
 import asyncio
 import hashlib
 import json
-import re
 import time
+import xml.etree.ElementTree as ET
 from datetime import datetime
+from html import unescape
 from urllib.parse import urlparse
+
+import httpx
 
 from app.services.llm_client import llm_client
 
-# Portfolio companies with search aliases and keywords for relevance filtering
+# ── RSS Sources ──────────────────────────────────────────────────────────────
+RSS_FEEDS = [
+    {"name": "РБК", "url": "https://rssexport.rbc.ru/rbcnews/news/30/full.rss"},
+    {"name": "Коммерсантъ", "url": "https://www.kommersant.ru/RSS/corp.xml"},
+    {"name": "Интерфакс", "url": "https://www.interfax.ru/rss.asp"},
+    {"name": "ТАСС Экономика", "url": "https://tass.ru/rss/ekonomika.xml"},
+    {"name": "Smart-lab", "url": "https://smart-lab.ru/rss/"},
+    {"name": "Ведомости", "url": "https://www.vedomosti.ru/rss/news"},
+]
+
+# ── Portfolio companies with keyword variations for matching ─────────────────
 PORTFOLIO_COMPANIES = {
     "afk": {
         "name": "АФК Система",
-        "queries": ["АФК Система инвестиции холдинг"],
-        "keywords": ["АФК", "Система", "Sistema"],
+        "keywords": ["АФК Система", "АФК «Система»", "Sistema", "AFKS"],
     },
     "mts": {
         "name": "МТС",
-        "queries": ["МТС телеком акции"],
-        "keywords": ["МТС", "MTS"],
+        "keywords": ["МТС", "MTS", "MTSS"],
     },
     "ozon": {
         "name": "Ozon",
-        "queries": ["Ozon маркетплейс акции"],
-        "keywords": ["Ozon", "Озон"],
+        "keywords": ["Ozon", "Озон", "OZON"],
     },
     "segezha": {
         "name": "Segezha Group",
-        "queries": ["Сегежа Group лесопромышленный"],
-        "keywords": ["Сегежа", "Segezha"],
+        "keywords": ["Сегежа", "Segezha", "SGZH"],
     },
     "etalon": {
         "name": "Эталон",
-        "queries": ["Группа Эталон девелопер акции"],
-        "keywords": ["Эталон", "Etalon"],
+        "keywords": ["Эталон", "Etalon", "ETLN"],
     },
     "medsi": {
         "name": "МЕДСИ",
-        "queries": ["МЕДСИ клиники медицина"],
         "keywords": ["МЕДСИ", "Medsi"],
     },
     "binnopharm": {
         "name": "Биннофарм Групп",
-        "queries": ["Биннофарм фармацевтика"],
         "keywords": ["Биннофарм", "Binnopharm"],
     },
     "step": {
         "name": "СТЕПЬ",
-        "queries": ["Агрохолдинг СТЕПЬ"],
-        "keywords": ["СТЕПЬ", "агрохолдинг"],
+        "keywords": ["СТЕПЬ", "агрохолдинг СТЕПЬ", "Степь агро"],
     },
     "cosmos": {
         "name": "Cosmos Hotel Group",
-        "queries": ["Cosmos Hotel Group гостиницы Россия"],
-        "keywords": ["Cosmos Hotel", "Космос отель"],
+        "keywords": ["Cosmos Hotel", "Космос отель", "Cosmos Group"],
     },
 }
 
-# Cache
-_news_cache: dict = {}  # {articles, dashboard, fetched_at}
-_digest_cache: dict = {}  # {period: {digest, generated_at}}
+# ── Cache ────────────────────────────────────────────────────────────────────
+_news_cache: dict = {}
+_digest_cache: dict = {}
 _refresh_lock: asyncio.Lock | None = None
 CACHE_TTL = 3600  # 1 hour
 
@@ -89,6 +93,15 @@ def _extract_domain(url: str) -> str:
         return ""
 
 
+def _strip_html(text: str) -> str:
+    """Remove HTML tags and decode entities."""
+    import re
+    text = unescape(text)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
 def _get_kb_summary() -> str:
     """Extract brief company profiles from KB for LLM context."""
     try:
@@ -107,111 +120,158 @@ def _get_kb_summary() -> str:
         return ""
 
 
-def _is_relevant(title: str, snippet: str, keywords: list[str]) -> bool:
-    """Check if article is relevant to the company by keyword match."""
-    text = (title + " " + snippet).lower()
-    return any(kw.lower() in text for kw in keywords)
+# ── RSS Fetching ─────────────────────────────────────────────────────────────
 
-
-async def _fetch_company_news(slug: str, info: dict) -> list[dict]:
-    """Fetch news for a single company using DDG news search."""
-    query = info["queries"][0]
-    keywords = info.get("keywords", [info["name"]])
+async def _fetch_rss(client: httpx.AsyncClient, feed: dict) -> list[dict]:
+    """Fetch and parse a single RSS feed. Returns raw articles."""
+    url = feed["url"]
+    source_name = feed["name"]
     try:
-        from duckduckgo_search import DDGS
+        resp = await client.get(url, timeout=10.0)
+        resp.raise_for_status()
+        content = resp.text
 
-        loop = asyncio.get_event_loop()
+        root = ET.fromstring(content)
 
-        def _search():
-            with DDGS() as ddgs:
-                # Use news() for actual news articles, with Russian region
-                try:
-                    results = list(ddgs.news(query, region="ru-ru", max_results=8))
-                except Exception:
-                    # Fallback to text search if news() fails
-                    results = list(ddgs.text(query, region="ru-ru", max_results=8))
-            return results
-
-        results = await loop.run_in_executor(None, _search)
-
+        # Handle both RSS 2.0 and Atom formats
         articles = []
-        for r in results:
-            title = r.get("title", "")
-            url = r.get("url") or r.get("href", "")
-            snippet = r.get("body", "") or r.get("snippet", "")
-            date = r.get("date", "")
+        ns = {"atom": "http://www.w3.org/2005/Atom"}
 
-            if not url or title.startswith("Search error"):
-                continue
+        # RSS 2.0: <channel><item>
+        items = root.findall(".//item")
+        if not items:
+            # Atom: <entry>
+            items = root.findall(".//atom:entry", ns) or root.findall(".//entry")
 
-            # Filter out irrelevant results
-            if not _is_relevant(title, snippet, keywords):
-                continue
+        for item in items[:50]:  # limit per feed
+            title = ""
+            link = ""
+            description = ""
+            pub_date = ""
 
-            articles.append({
-                "id": _article_id(url, title),
-                "company_slug": slug,
-                "company_name": info["name"],
-                "title": title,
-                "url": url,
-                "snippet": snippet,
-                "source": _extract_domain(url),
-                "published_approx": date[:10] if date else "",
-                "sentiment": "neutral",
-                "summary": "",
-                "alert_type": None,
-                "portfolio_impact": None,
-            })
-        return articles[:5]
+            # RSS 2.0
+            t = item.find("title")
+            if t is not None and t.text:
+                title = t.text.strip()
+
+            l = item.find("link")
+            if l is not None:
+                link = (l.text or l.get("href", "")).strip()
+
+            d = item.find("description")
+            if d is not None and d.text:
+                description = _strip_html(d.text)[:300]
+
+            p = item.find("pubDate")
+            if p is not None and p.text:
+                pub_date = p.text.strip()
+
+            # Atom fallback
+            if not title:
+                t = item.find("atom:title", ns)
+                if t is not None and t.text:
+                    title = t.text.strip()
+            if not link:
+                l = item.find("atom:link", ns)
+                if l is not None:
+                    link = l.get("href", "")
+            if not description:
+                d = item.find("atom:summary", ns) or item.find("atom:content", ns)
+                if d is not None and d.text:
+                    description = _strip_html(d.text)[:300]
+
+            if title and link:
+                articles.append({
+                    "title": title,
+                    "url": link,
+                    "snippet": description,
+                    "source": source_name,
+                    "pub_date": pub_date,
+                })
+
+        return articles
     except Exception as e:
-        print(f"[NEWS] Error fetching {slug}: {e}")
+        print(f"[NEWS] RSS error {source_name}: {e}")
         return []
 
 
+def _match_company(title: str, snippet: str) -> tuple[str, str] | None:
+    """Match article to a portfolio company. Returns (slug, name) or None."""
+    text = (title + " " + snippet).lower()
+    for slug, info in PORTFOLIO_COMPANIES.items():
+        for kw in info["keywords"]:
+            if kw.lower() in text:
+                return slug, info["name"]
+    return None
+
+
 async def fetch_all_news() -> list[dict]:
-    """Fetch news for all portfolio companies in batches."""
-    all_articles = []
-    companies = list(PORTFOLIO_COMPANIES.items())
-
-    # Batch by 4 companies with 1s delay between batches
-    batch_size = 4
-    for i in range(0, len(companies), batch_size):
-        batch = companies[i:i + batch_size]
-        tasks = [_fetch_company_news(slug, info) for slug, info in batch]
+    """Fetch RSS feeds and match articles to portfolio companies."""
+    async with httpx.AsyncClient(
+        headers={"User-Agent": "MWS-CopilotBot/1.0"},
+        follow_redirects=True,
+    ) as client:
+        tasks = [_fetch_rss(client, feed) for feed in RSS_FEEDS]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        for result in results:
-            if isinstance(result, list):
-                all_articles.extend(result)
-        if i + batch_size < len(companies):
-            await asyncio.sleep(1.0)
 
-    # Deduplicate by url
+    # Flatten all RSS articles
+    all_raw = []
+    for result in results:
+        if isinstance(result, list):
+            all_raw.extend(result)
+
+    print(f"[NEWS] Fetched {len(all_raw)} raw RSS articles from {len(RSS_FEEDS)} feeds")
+
+    # Match to portfolio companies
+    matched = []
     seen_urls = set()
-    unique = []
-    for a in all_articles:
-        if a["url"] not in seen_urls:
-            seen_urls.add(a["url"])
-            unique.append(a)
+    for raw in all_raw:
+        if raw["url"] in seen_urls:
+            continue
 
-    return unique
+        match = _match_company(raw["title"], raw["snippet"])
+        if not match:
+            continue
 
+        slug, company_name = match
+        seen_urls.add(raw["url"])
+        matched.append({
+            "id": _article_id(raw["url"], raw["title"]),
+            "company_slug": slug,
+            "company_name": company_name,
+            "title": raw["title"],
+            "url": raw["url"],
+            "snippet": raw["snippet"],
+            "source": raw["source"],
+            "published_approx": raw.get("pub_date", "")[:16],
+            "sentiment": "neutral",
+            "summary": "",
+            "alert_type": None,
+            "portfolio_impact": None,
+        })
+
+    print(f"[NEWS] Matched {len(matched)} articles to portfolio companies")
+    return matched
+
+
+# ── LLM Analysis ─────────────────────────────────────────────────────────────
 
 async def _analyze_batch(articles: list[dict]) -> list[dict]:
-    """Analyze articles with LLM: sentiment, summary, alerts, portfolio impact. One call."""
+    """Analyze articles with LLM: sentiment, summary, alerts, portfolio impact."""
     if not articles:
         return articles
 
     kb_summary = _get_kb_summary()
 
     items_text = ""
-    for i, a in enumerate(articles[:60]):  # limit to 60 articles
-        items_text += f"\n[{i}] Компания: {a['company_name']}\nЗаголовок: {a['title']}\nФрагмент: {a['snippet'][:200]}\n"
+    for i, a in enumerate(articles[:60]):
+        items_text += f"\n[{i}] Компания: {a['company_name']}\nЗаголовок: {a['title']}\nФрагмент: {a['snippet'][:200]}\nИсточник: {a['source']}\n"
 
     prompt = f"""Ты — инвестиционный аналитик АФК Система. Проанализируй новости по портфельным компаниям.
 
 Для КАЖДОЙ новости определи:
 1. sentiment: "positive" | "negative" | "neutral"
-2. summary: одно предложение на русском (суть новости)
+2. summary: одно предложение на русском (суть новости для инвестора)
 3. alert_type: null или один из: "ipo", "management", "legal", "rating", "deal", "debt", "regulatory"
    (только если новость действительно важная — IPO, смена руководства, суд, рейтинг, сделка, долг, регулятор)
 4. portfolio_impact: null или объект с полями:
@@ -234,7 +294,6 @@ async def _analyze_batch(articles: list[dict]) -> list[dict]:
             messages=[{"role": "user", "content": prompt}],
             max_tokens=4000,
         )
-        # Extract JSON from response
         text = response.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[-1].rsplit("```", 1)[0]
@@ -257,10 +316,11 @@ async def _analyze_batch(articles: list[dict]) -> list[dict]:
                     }
     except Exception as e:
         print(f"[NEWS] LLM analysis error: {e}")
-        # Fallback: all neutral, no alerts
 
     return articles
 
+
+# ── Dashboard Metrics ────────────────────────────────────────────────────────
 
 def get_dashboard_metrics(articles: list[dict]) -> dict:
     """Compute dashboard metrics from analyzed articles."""
@@ -269,7 +329,6 @@ def get_dashboard_metrics(articles: list[dict]) -> dict:
     negative = sum(1 for a in articles if a["sentiment"] == "negative")
     neutral = total - positive - negative
 
-    # Sentiment by company
     company_stats: dict[str, dict] = {}
     for a in articles:
         slug = a["company_slug"]
@@ -280,7 +339,6 @@ def get_dashboard_metrics(articles: list[dict]) -> dict:
 
     sentiment_by_company = sorted(company_stats.values(), key=lambda x: x["total"], reverse=True)
 
-    # Alerts
     alerts = []
     for a in articles:
         if a.get("alert_type"):
@@ -295,7 +353,6 @@ def get_dashboard_metrics(articles: list[dict]) -> dict:
                 "severity": severity,
             })
 
-    # Top companies by count
     top_companies = [{"slug": c["slug"], "name": c["name"], "count": c["total"]} for c in sentiment_by_company[:5]]
 
     return {
@@ -309,27 +366,26 @@ def get_dashboard_metrics(articles: list[dict]) -> dict:
     }
 
 
+# ── Cache Management ─────────────────────────────────────────────────────────
+
 async def _ensure_cache() -> None:
     """Ensure cache is populated, with lock to prevent concurrent refreshes."""
     if _cache_valid():
         return
     async with _get_lock():
-        # Double-check after acquiring lock
         if _cache_valid():
             return
         await refresh_news()
 
 
 async def refresh_news() -> dict:
-    """Fetch + analyze + cache. Returns full news response."""
+    """Fetch + analyze + cache."""
     articles = await fetch_all_news()
-    print(f"[NEWS] Fetched {len(articles)} articles")
     articles = await _analyze_batch(articles)
     dashboard = get_dashboard_metrics(articles)
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    # Build companies list
     company_counts: dict[str, dict] = {}
     for a in articles:
         slug = a["company_slug"]
@@ -345,16 +401,18 @@ async def refresh_news() -> dict:
         "fetched_at": time.time(),
     })
 
+    # Clear digest cache on refresh
+    _digest_cache.clear()
+
     return _news_cache
 
 
-async def get_news(company: str | None = None, sentiment: str | None = None, limit: int = 50) -> dict:
-    """Get cached or fresh news, with optional filters."""
-    await _ensure_cache()
+# ── Public API ───────────────────────────────────────────────────────────────
 
+async def get_news(company: str | None = None, sentiment: str | None = None, limit: int = 50) -> dict:
+    await _ensure_cache()
     articles = _news_cache.get("articles", [])
 
-    # Server-side filtering (optional, client can also filter)
     if company and company != "all":
         articles = [a for a in articles if a["company_slug"] == company]
     if sentiment and sentiment != "all":
@@ -368,40 +426,35 @@ async def get_news(company: str | None = None, sentiment: str | None = None, lim
 
 
 async def get_dashboard() -> dict:
-    """Get dashboard metrics."""
     await _ensure_cache()
     return _news_cache.get("dashboard", {})
 
 
 async def get_alerts() -> list[dict]:
-    """Get active alerts."""
     await _ensure_cache()
     return _news_cache.get("dashboard", {}).get("alerts", [])
 
 
 def get_companies() -> list[dict]:
-    """Get portfolio companies list for filter dropdown."""
     return [{"slug": slug, "name": info["name"]} for slug, info in PORTFOLIO_COMPANIES.items()]
 
 
 async def generate_digest(period: str = "day") -> dict:
-    """Generate AI analytical digest. One LLM call."""
-    # Check digest cache
+    """Generate AI analytical digest."""
     cached = _digest_cache.get(period)
-    if cached and time.time() - cached.get("generated_at_ts", 0) < 1800:  # 30 min cache
+    if cached and time.time() - cached.get("generated_at_ts", 0) < 1800:
         return cached
 
     await _ensure_cache()
 
     articles = _news_cache.get("articles", [])
     if not articles:
-        return {"digest": "Нет данных для дайджеста.", "period": period, "article_count": 0, "generated_at": ""}
+        return {"digest": "Нет новостей по портфельным компаниям в текущих RSS-лентах.", "period": period, "article_count": 0, "generated_at": ""}
 
-    # Prepare summaries for LLM
     summaries = []
     for a in articles[:40]:
         sentiment_emoji = {"positive": "+", "negative": "-", "neutral": "="}.get(a["sentiment"], "=")
-        summaries.append(f"[{sentiment_emoji}] {a['company_name']}: {a.get('summary') or a['title']}")
+        summaries.append(f"[{sentiment_emoji}] {a['company_name']}: {a.get('summary') or a['title']} ({a['source']})")
 
     kb_summary = _get_kb_summary()
     period_label = "сегодня" if period == "day" else "за неделю"
