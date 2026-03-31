@@ -8,6 +8,7 @@ import KnowledgeBase from './KnowledgeBase';
 import CommitteeView from './CommitteeView';
 import LoginScreen from './LoginScreen';
 import AnalyticsDashboard from './AnalyticsDashboard';
+import NewsMonitoring from './NewsMonitoring';
 
 export default function AppShell() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -27,7 +28,7 @@ export default function AppShell() {
     stopStreaming,
   } = useChat();
 
-  const [view, setView] = useState<'chat' | 'kb' | 'committee' | 'analytics'>('chat');
+  const [view, setView] = useState<'chat' | 'kb' | 'committee' | 'analytics' | 'news'>('chat');
 
   // Check existing token on mount
   useEffect(() => {
@@ -104,6 +105,8 @@ export default function AppShell() {
         isDemo={userRole === 'demo'}
         onSelectAnalytics={userRole === 'admin' ? () => setView('analytics') : undefined}
         isAnalyticsActive={view === 'analytics'}
+        onSelectNews={() => setView('news')}
+        isNewsActive={view === 'news'}
         onLogout={handleLogout}
       />
       {view === 'kb' ? (
@@ -112,6 +115,8 @@ export default function AppShell() {
         <CommitteeView />
       ) : view === 'analytics' && userRole === 'admin' ? (
         <AnalyticsDashboard />
+      ) : view === 'news' ? (
+        <NewsMonitoring />
       ) : (
         <ChatArea
           activeSession={activeSession}

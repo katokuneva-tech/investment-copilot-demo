@@ -76,3 +76,67 @@ export interface KBDocument {
   text_preview: string;
   is_active: boolean;
 }
+
+// --- News Monitoring ---
+
+export interface PortfolioImpact {
+  company_slug: string;
+  metric: string;
+  direction: 'positive' | 'negative' | 'risk' | 'opportunity';
+  context: string;
+}
+
+export interface NewsArticle {
+  id: string;
+  company_slug: string;
+  company_name: string;
+  title: string;
+  url: string;
+  snippet: string;
+  source: string;
+  published_approx: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
+  summary: string;
+  alert_type: string | null;
+  portfolio_impact: PortfolioImpact | null;
+}
+
+export interface NewsAlert {
+  id: string;
+  company_slug: string;
+  company_name: string;
+  alert_type: string;
+  title: string;
+  description: string;
+  severity: 'high' | 'medium' | 'low';
+}
+
+export interface NewsCompany {
+  slug: string;
+  name: string;
+  article_count?: number;
+}
+
+export interface NewsDashboard {
+  total: number;
+  positive: number;
+  negative: number;
+  neutral: number;
+  sentiment_by_company: Array<{
+    slug: string;
+    name: string;
+    positive: number;
+    negative: number;
+    neutral: number;
+    total: number;
+  }>;
+  alerts: NewsAlert[];
+  top_companies: Array<{ slug: string; name: string; count: number }>;
+}
+
+export interface NewsDigest {
+  digest: string;
+  period: string;
+  article_count: number;
+  generated_at: string;
+}

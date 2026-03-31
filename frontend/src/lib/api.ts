@@ -166,3 +166,57 @@ export async function exportBlocks(blocks: ContentBlock[], title: string): Promi
 export function getReportUrl(reportId: string): string {
   return `${API_BASE_URL}/api/reports/${reportId}`;
 }
+
+// --- News Monitoring ---
+
+export async function fetchNewsFeed(params?: {
+  company?: string;
+  sentiment?: string;
+  limit?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params?.company) query.set('company', params.company);
+  if (params?.sentiment) query.set('sentiment', params.sentiment);
+  if (params?.limit) query.set('limit', String(params.limit));
+  const qs = query.toString();
+  const res = await fetch(`${API_BASE_URL}/api/news/feed${qs ? `?${qs}` : ''}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error('Failed to fetch news');
+  return res.json();
+}
+
+export async function fetchNewsDashboard() {
+  const res = await fetch(`${API_BASE_URL}/api/news/dashboard`, { headers: authHeaders() });
+  if (!res.ok) throw new Error('Failed to fetch dashboard');
+  return res.json();
+}
+
+export async function fetchNewsAlerts() {
+  const res = await fetch(`${API_BASE_URL}/api/news/alerts`, { headers: authHeaders() });
+  if (!res.ok) throw new Error('Failed to fetch alerts');
+  return res.json();
+}
+
+export async function fetchNewsCompanies() {
+  const res = await fetch(`${API_BASE_URL}/api/news/companies`, { headers: authHeaders() });
+  if (!res.ok) throw new Error('Failed to fetch companies');
+  return res.json();
+}
+
+export async function refreshNews() {
+  const res = await fetch(`${API_BASE_URL}/api/news/refresh`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error('Failed to refresh news');
+  return res.json();
+}
+
+export async function fetchNewsDigest(period: 'day' | 'week') {
+  const res = await fetch(`${API_BASE_URL}/api/news/digest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ period }),
+  });
+  if (!res.ok) throw new Error('Failed to generate digest');
+  return res.json();
+}

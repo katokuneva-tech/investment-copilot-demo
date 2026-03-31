@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import chat, reports, documents
 from app.api import analytics as analytics_router
+from app.api import news as news_router
 from app.auth import AuthMiddleware, USERS, create_token, change_password
 
 app = FastAPI(title="Investment Intelligence Copilot", version="1.0.0")
@@ -22,6 +23,7 @@ app.include_router(chat.router)
 app.include_router(reports.router)
 app.include_router(documents.router)
 app.include_router(analytics_router.router)
+app.include_router(news_router.router)
 
 
 @app.post("/api/auth/login")
