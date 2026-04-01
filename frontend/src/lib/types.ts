@@ -63,6 +63,33 @@ export interface SourceData {
   type?: string;
 }
 
+// --- V2 Multi-Agent Types ---
+
+export interface AgentInfo {
+  name: string;
+  role: string;
+}
+
+export interface AgentProgress {
+  agent: string;
+  role: string;
+  status: 'done' | 'error';
+  elapsed: number;
+  preview: string;
+}
+
+export interface AgentsMetadata {
+  use_case: string;
+  agents_used: string[];
+  total_elapsed_sec: number;
+  agent_details: Array<{
+    name: string;
+    role: string;
+    elapsed_sec: number;
+    has_error: boolean;
+  }>;
+}
+
 export interface KBDocument {
   id: string;
   filename: string;

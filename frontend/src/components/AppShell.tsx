@@ -21,11 +21,14 @@ export default function AppShell() {
     activeSessionId,
     activeSkillId,
     isStreaming,
+    isV2Mode,
+    activeAgents,
     sendMessage,
     startNewChat,
     selectSession,
     selectSkill,
     stopStreaming,
+    toggleV2Mode,
   } = useChat();
 
   const [view, setView] = useState<'chat' | 'kb' | 'committee' | 'analytics' | 'news'>('chat');
@@ -108,6 +111,8 @@ export default function AppShell() {
         onSelectNews={() => setView('news')}
         isNewsActive={view === 'news'}
         onLogout={handleLogout}
+        isV2Mode={isV2Mode}
+        onToggleV2={toggleV2Mode}
       />
       {view === 'kb' ? (
         <KnowledgeBase />
@@ -122,6 +127,8 @@ export default function AppShell() {
           activeSession={activeSession}
           activeSkillId={activeSkillId || 'auto'}
           isStreaming={isStreaming}
+          isV2Mode={isV2Mode}
+          activeAgents={activeAgents}
           onSendMessage={sendMessage}
           onSelectSkill={handleSelectSkill}
           onStopStreaming={stopStreaming}

@@ -1,0 +1,327 @@
+"""
+Orchestrator — routes user requests to specialist agents based on use case,
+runs them in parallel, then synthesizes via FundDirector.
+
+Use cases:
+  UC1 portfolio  — FinancialAgent + SentimentAgent → FundDirector
+  UC2 investment — FinancialAgent + MarketAgent + RiskAgent + BenchmarkAgent → FundDirector
+  UC3 market     — MarketAgent (x3 queries) → FundDirector
+  UC4 benchmark  — BenchmarkAgent + FinancialAgent → FundDirector
+  UC5 committee  — All 5 agents → FundDirector
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import time
+from dataclasses import dataclass
+
+from app.agents.base_agent import AgentResult, run_agents_parallel
+from app.agents.financial import FinancialAgent
+from app.agents.market import MarketAgent
+from app.agents.risk import RiskAgent
+from app.agents.sentiment import SentimentAgent
+from app.agents.benchmark import BenchmarkAgent
+from app.agents.fund_director import FundDirector
+from app.services.llm_client import llm_client
+
+logger = logging.getLogger(__name__)
+
+# ── Use case → skill_id mapping ──────────────────────────────────────────
+
+USE_CASE_MAP = {
+    "portfolio_analytics": "portfolio",
+    "investment_analysis": "investment",
+    "market_research": "market",
+    "benchmarking": "benchmark",
+    "committee_advisor": "committee",
+}
+
+
+@dataclass
+class OrchestratorResult:
+    """Final output from the orchestrator pipeline."""
+    use_case: str
+    final_answer: str
+    agent_results: list[AgentResult]
+    director_result: AgentResult | None
+    total_elapsed_sec: float
+    agents_used: list[str]
+
+
+# ── Intent classification ────────────────────────────────────────────────
+
+CLASSIFY_PROMPT = """Определи тип запроса пользователя по портфелю АФК Система.
+
+Варианты:
+- portfolio_analytics — вопрос по портфельным компаниям (выручка, долг, дивиденды, рост, ковенанты, менеджмент)
+- investment_analysis — оценка инвестиционного проекта/сделки (NPV, IRR, предпосылки, due diligence)
+- market_research — анализ рынка/сектора (размер, рост, игроки, тренды, M&A)
+- benchmarking — сравнение компаний с аналогами (мультипликаторы, peers, implied valuation)
+- committee_advisor — подготовка к комитету, анализ материалов сделки, протокол
+
+Ответь ОДНИМ словом — id скилла. Если не уверен, ответь portfolio_analytics."""
+
+
+async def classify_intent(message: str) -> str:
+    """Classify user intent into one of 5 use cases."""
+    try:
+        response = await llm_client.chat(
+            system=CLASSIFY_PROMPT,
+            messages=[{"role": "user", "content": message}],
+            temperature=0.0,
+            max_tokens=50,
+        )
+        skill_id = response.strip().lower().replace('"', '').replace("'", "")
+        if skill_id in USE_CASE_MAP:
+            return skill_id
+    except Exception as e:
+        logger.error(f"Intent classification failed: {e}")
+    return "portfolio_analytics"
+
+
+# ── Agent factory per use case ───────────────────────────────────────────
+
+def _extract_companies(message: str, context: str) -> list[str]:
+    """Extract company names mentioned in message/context for news search."""
+    known = ["МТС", "Ozon", "Segezha", "Эталон", "МЕДСИ", "Биннофарм",
+             "СТЕПЬ", "Cosmos", "Natura Siberica", "Concept Club",
+             "АФК Система", "Sitronics", "Aeromax"]
+    found = []
+    text = (message + " " + context).lower()
+    for c in known:
+        if c.lower() in text:
+            found.append(c)
+    # If no specific company mentioned and it's a portfolio question, include top ones
+    if not found:
+        found = ["АФК Система", "МТС", "Ozon", "Segezha", "Эталон"]
+    return found[:5]
+
+
+def _extract_search_queries(message: str, use_case: str) -> list[str]:
+    """Generate web search queries based on user message and use case."""
+    queries = []
+    if use_case == "market":
+        queries = [
+            f"{message} размер рынка Россия 2025",
+            f"{message} ключевые игроки доля рынка",
+            f"{message} M&A сделки 2024 2025 2026",
+        ]
+    elif use_case == "benchmark":
+        queries = [
+            f"{message} EV/EBITDA мультипликаторы аналоги",
+            f"{message} финансовые показатели конкуренты",
+        ]
+    elif use_case == "investment":
+        queries = [
+            f"{message} рынок размер рост Россия",
+            f"{message} аналоги мультипликаторы сделки",
+        ]
+    return queries
+
+
+def build_agents(use_case: str, message: str, context: str) -> list:
+    """Build the right set of agents for a given use case."""
+    companies = _extract_companies(message, context)
+    search_q = _extract_search_queries(message, use_case)
+
+    if use_case == "portfolio":
+        return [
+            FinancialAgent(context=context, user_query=message),
+            SentimentAgent(context=context, user_query=f"Найди последние новости и оцени сентимент по компаниям: {', '.join(companies)}", companies=companies),
+        ]
+
+    elif use_case == "investment":
+        return [
+            FinancialAgent(context=context, user_query=f"Проанализируй финансовую модель и рассчитай NPV/IRR. Проведи анализ чувствительности.\n\nЗапрос: {message}"),
+            MarketAgent(context=context, user_query=f"Верифицируй предпосылки финмодели против рыночных данных. Найди размер и динамику рынка.\n\nЗапрос: {message}", search_queries=search_q),
+            RiskAgent(context=context, user_query=f"Найди red flags, составь матрицу рисков и DD чеклист.\n\nЗапрос: {message}"),
+            BenchmarkAgent(context=context, user_query=f"Найди аналоги, сравни мультипликаторы, оцени справедливость цены.\n\nЗапрос: {message}", search_queries=search_q),
+        ]
+
+    elif use_case == "market":
+        return [
+            MarketAgent(context=context, user_query=f"Размер рынка, динамика, сегменты, маржинальность.\n\nЗапрос: {message}", search_queries=[search_q[0]] if search_q else []),
+            MarketAgent(context=context, user_query=f"Ключевые игроки, доли рынка, M&A сделки.\n\nЗапрос: {message}", search_queries=[search_q[1]] if len(search_q) > 1 else []),
+            SentimentAgent(context=context, user_query=f"Тренды, регуляторика, прогнозы, основные новости.\n\nЗапрос: {message}", companies=[]),
+        ]
+
+    elif use_case == "benchmark":
+        return [
+            BenchmarkAgent(context=context, user_query=f"Найди аналоги и сравни мультипликаторы.\n\nЗапрос: {message}", search_queries=search_q),
+            FinancialAgent(context=context, user_query=f"Рассчитай implied valuation, премии/дисконты к медиане peers.\n\nЗапрос: {message}"),
+        ]
+
+    elif use_case == "committee":
+        return [
+            FinancialAgent(context=context, user_query=f"Проверь IRR/NPV, найди противоречия между документами.\n\nЗапрос: {message}"),
+            MarketAgent(context=context, user_query=f"Проверь рыночный контекст и предпосылки.\n\nЗапрос: {message}", search_queries=search_q),
+            RiskAgent(context=context, user_query=f"Найди все red flags, составь DD чеклист и вопросы для менеджмента.\n\nЗапрос: {message}"),
+            SentimentAgent(context=context, user_query=f"Проверь репутацию контрагента и информационный фон.\n\nЗапрос: {message}", companies=companies),
+            BenchmarkAgent(context=context, user_query=f"Сравни мультипликатор сделки с аналогами.\n\nЗапрос: {message}", search_queries=search_q),
+        ]
+
+    # Fallback
+    return [
+        FinancialAgent(context=context, user_query=message),
+    ]
+
+
+# ── Main orchestration ───────────────────────────────────────────────────
+
+async def orchestrate(
+    skill_id: str,
+    message: str,
+    context: str,
+    history: list[dict] | None = None,
+) -> OrchestratorResult:
+    """
+    Main entry point for v2 multi-agent pipeline.
+
+    1. Classify intent (if skill_id == "auto")
+    2. Build specialist agents for the use case
+    3. Run agents in parallel
+    4. Synthesize via FundDirector
+    5. Return structured result
+    """
+    start = time.monotonic()
+
+    # Step 1: Intent classification
+    if skill_id == "auto":
+        skill_id = await classify_intent(message)
+    use_case = USE_CASE_MAP.get(skill_id, "portfolio")
+
+    logger.info(f"Orchestrator: use_case={use_case}, skill_id={skill_id}")
+
+    # Step 2: Build agents
+    agents = build_agents(use_case, message, context)
+    agent_names = [a.NAME for a in agents]
+    logger.info(f"Orchestrator: launching {len(agents)} agents: {agent_names}")
+
+    # Step 3: Run in parallel
+    agent_results = await run_agents_parallel(agents)
+
+    # Log results
+    for r in agent_results:
+        status = "OK" if not r.error else f"ERROR: {r.error}"
+        logger.info(f"  {r.agent_name}: {status} ({r.elapsed_sec}s)")
+
+    # Step 4: Synthesize via FundDirector
+    successful_results = [r for r in agent_results if not r.error]
+    director_result = None
+
+    if successful_results:
+        director = FundDirector.synthesize(
+            agent_results=successful_results,
+            user_query=message,
+            use_case=use_case,
+        )
+        director_result = await director.run()
+
+    # Step 5: Build final answer
+    if director_result and not director_result.error:
+        final_answer = director_result.content
+    elif successful_results:
+        # Fallback: concatenate agent results
+        final_answer = "\n\n---\n\n".join(
+            f"## {r.role}\n{r.content}" for r in successful_results
+        )
+    else:
+        final_answer = "Не удалось получить анализ. Все агенты вернули ошибки."
+
+    total = time.monotonic() - start
+
+    return OrchestratorResult(
+        use_case=use_case,
+        final_answer=final_answer,
+        agent_results=agent_results,
+        director_result=director_result,
+        total_elapsed_sec=round(total, 1),
+        agents_used=agent_names,
+    )
+
+
+async def orchestrate_stream(
+    skill_id: str,
+    message: str,
+    context: str,
+    history: list[dict] | None = None,
+):
+    """
+    Streaming version of orchestrate.
+    Yields SSE-compatible events as agents complete and director synthesizes.
+    """
+    import json
+
+    # Step 1: Classify
+    if skill_id == "auto":
+        skill_id = await classify_intent(message)
+    use_case = USE_CASE_MAP.get(skill_id, "portfolio")
+
+    # Step 2: Build agents
+    agents = build_agents(use_case, message, context)
+    agent_names = [a.NAME for a in agents]
+
+    # Emit: agents started
+    yield json.dumps({
+        "type": "agents_started",
+        "agents": [{"name": a.NAME, "role": a.ROLE} for a in agents],
+        "use_case": use_case,
+    })
+
+    # Step 3: Run agents with progress reporting
+    tasks = {a.NAME: asyncio.create_task(a.run()) for a in agents}
+    agent_results: list[AgentResult] = []
+
+    # Wait for each to complete, emit progress
+    for name, task in tasks.items():
+        result = await task
+        agent_results.append(result)
+        status = "done" if not result.error else "error"
+        yield json.dumps({
+            "type": "agent_progress",
+            "agent": name,
+            "role": result.role,
+            "status": status,
+            "elapsed": result.elapsed_sec,
+            "preview": result.content[:200] if result.content else result.error or "",
+        })
+
+    # Step 4: Synthesize
+    yield json.dumps({"type": "status", "message": "Синтезирую заключение..."})
+
+    successful = [r for r in agent_results if not r.error]
+    if successful:
+        director = FundDirector.synthesize(
+            agent_results=successful,
+            user_query=message,
+            use_case=use_case,
+        )
+
+        # Stream the director's response
+        try:
+            messages = director._build_messages()
+            async for chunk in llm_client.stream(
+                system=director.SYSTEM_PROMPT,
+                messages=messages,
+                temperature=0.15,
+            ):
+                yield json.dumps({"type": "text", "content": chunk})
+        except Exception as e:
+            # Fallback to non-streaming
+            result = await director.run()
+            yield json.dumps({"type": "text", "content": result.content})
+    else:
+        yield json.dumps({
+            "type": "text",
+            "content": "Не удалось получить анализ от агентов.",
+        })
+
+    # Emit: done
+    yield json.dumps({
+        "type": "done",
+        "agents_used": agent_names,
+        "use_case": use_case,
+    })

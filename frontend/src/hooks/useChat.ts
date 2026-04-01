@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { ChatSession, Message, ContentBlock, ThinkingStep } from '@/lib/types';
-import { streamChat, SSEEvent } from '@/lib/api';
+import { streamChat, streamChatV2, SSEEvent } from '@/lib/api';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
@@ -13,6 +13,8 @@ export function useChat() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeSkillId, setActiveSkillId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isV2Mode, setIsV2Mode] = useState(false);
+  const [activeAgents, setActiveAgents] = useState<Array<{name: string; role: string; status?: string; elapsed?: number}>>([]);
   const abortRef = useRef<AbortController | null>(null);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
@@ -163,7 +165,7 @@ export function useChat() {
       const handleEvent = (event: SSEEvent) => {
         switch (event.type) {
           case 'status': {
-            const content = event.content || '';
+            const content = (event as any).content || (event as any).message || '';
             let stepType: ThinkingStep['type'] = 'tool_result';
             if (content.startsWith('... ')) stepType = 'thinking';
             else if (content.startsWith('>> ')) stepType = 'tool_call';
@@ -172,6 +174,49 @@ export function useChat() {
               content: content.replace(/^\.\.\.\s*/, '').replace(/^>>\s*/, ''),
               timestamp: Date.now(),
             });
+            break;
+          }
+          // V2: agents lifecycle events
+          case 'agents_started': {
+            const ev = event as any;
+            setActiveAgents((ev.agents || []).map((a: any) => ({ name: a.name, role: a.role, status: 'running' })));
+            updateThinkingSteps({
+              type: 'thinking',
+              content: `Запущено ${ev.agents?.length || 0} аналитиков: ${(ev.agents || []).map((a: any) => a.role).join(', ')}`,
+              timestamp: Date.now(),
+            });
+            break;
+          }
+          case 'agent_progress': {
+            const ev = event as any;
+            setActiveAgents(prev => prev.map(a =>
+              a.name === ev.agent ? { ...a, status: ev.status, elapsed: ev.elapsed } : a
+            ));
+            const icon = ev.status === 'done' ? '[OK]' : '[!]';
+            updateThinkingSteps({
+              type: 'tool_result',
+              content: `${icon} ${ev.role} (${ev.elapsed}с)`,
+              timestamp: Date.now(),
+            });
+            break;
+          }
+          // V2: text chunks from director streaming
+          case 'text': {
+            const content = (event as any).content || '';
+            if (!currentTextBlock) {
+              currentTextBlock = { type: 'text', data: content };
+              updateAssistantBlocks((blocks) => [...blocks, { ...currentTextBlock! }]);
+            } else {
+              currentTextBlock.data += content;
+              const snapshot = currentTextBlock.data;
+              updateAssistantBlocks((blocks) => {
+                const last = blocks[blocks.length - 1];
+                if (last && last.type === 'text') {
+                  return [...blocks.slice(0, -1), { type: 'text', data: snapshot }];
+                }
+                return [...blocks, { type: 'text', data: snapshot }];
+              });
+            }
             break;
           }
           case 'text_delta': {
@@ -195,6 +240,13 @@ export function useChat() {
             currentTextBlock = null;
             break;
           }
+          case 'error': {
+            updateAssistantBlocks((blocks) => [
+              ...blocks,
+              { type: 'text', data: `\n\n[!] Ошибка: ${(event as any).content}` },
+            ]);
+            break;
+          }
           case 'table':
           case 'chart':
           case 'pdf_link':
@@ -208,6 +260,7 @@ export function useChat() {
           }
           case 'done': {
             setIsStreaming(false);
+            setActiveAgents([]);
             abortRef.current = null;
             break;
           }
@@ -241,7 +294,8 @@ export function useChat() {
                   .join('\n'),
           }));
 
-      await streamChat(
+      const streamFn = isV2Mode ? streamChatV2 : streamChat;
+      await streamFn(
         skillId,
         text,
         sessionId,
@@ -252,15 +306,20 @@ export function useChat() {
         history,
       );
     },
-    [activeSessionId, activeSkillId, isStreaming, sessions],
+    [activeSessionId, activeSkillId, isStreaming, isV2Mode, sessions],
   );
 
   const stopStreaming = useCallback(() => {
     if (abortRef.current) {
       abortRef.current.abort();
       setIsStreaming(false);
+      setActiveAgents([]);
       abortRef.current = null;
     }
+  }, []);
+
+  const toggleV2Mode = useCallback(() => {
+    setIsV2Mode(prev => !prev);
   }, []);
 
   return {
@@ -269,10 +328,13 @@ export function useChat() {
     activeSessionId,
     activeSkillId,
     isStreaming,
+    isV2Mode,
+    activeAgents,
     sendMessage,
     startNewChat,
     selectSession,
     selectSkill,
     stopStreaming,
+    toggleV2Mode,
   };
 }

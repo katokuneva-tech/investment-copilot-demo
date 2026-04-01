@@ -1,5 +1,5 @@
 import { API_BASE_URL } from './constants';
-import { ContentBlock, KBDocument } from './types';
+import { ContentBlock, KBDocument, AgentInfo, AgentProgress } from './types';
 
 function authHeaders(): Record<string, string> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('copilot_token') : null;
@@ -14,7 +14,12 @@ export type SSEEvent =
   | { type: 'chart'; data: any }
   | { type: 'pdf_link'; data: any }
   | { type: 'sources'; data: any }
-  | { type: 'done' };
+  | { type: 'done' }
+  // V2 multi-agent events
+  | { type: 'agents_started'; agents: AgentInfo[]; use_case: string }
+  | { type: 'agent_progress'; agent: string; role: string; status: string; elapsed: number; preview: string }
+  | { type: 'text'; content: string }
+  | { type: 'error'; content: string };
 
 export async function streamChat(
   skillId: string,
@@ -80,6 +85,79 @@ export async function streamChat(
     }
 
     // Stream ended without explicit done
+    onEvent({ type: 'done' });
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name !== 'AbortError') {
+      onError(err);
+    } else if (!(err instanceof Error)) {
+      onError(new Error(String(err)));
+    }
+  }
+}
+
+// --- V2 Multi-Agent Stream ---
+
+export async function streamChatV2(
+  skillId: string,
+  message: string,
+  sessionId: string,
+  onEvent: (event: SSEEvent) => void,
+  onError: (error: Error) => void,
+  signal?: AbortSignal,
+  attachmentIds?: string[],
+  history?: Array<{role: string; content: string}>,
+): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v2/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({
+        skill_id: skillId,
+        message,
+        session_id: sessionId,
+        attachment_ids: attachmentIds || [],
+        history: history || [],
+      }),
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+        const jsonStr = trimmed.slice(6);
+        if (jsonStr === '[DONE]') {
+          onEvent({ type: 'done' });
+          return;
+        }
+
+        try {
+          const event = JSON.parse(jsonStr) as SSEEvent;
+          onEvent(event);
+        } catch {
+          // skip malformed JSON
+        }
+      }
+    }
+
     onEvent({ type: 'done' });
   } catch (err: unknown) {
     if (err instanceof Error && err.name !== 'AbortError') {

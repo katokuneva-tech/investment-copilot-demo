@@ -26,6 +26,8 @@ interface SidebarProps {
   onSelectNews?: () => void;
   isNewsActive?: boolean;
   onLogout?: () => void;
+  isV2Mode?: boolean;
+  onToggleV2?: () => void;
 }
 
 function ModelSwitcher({ isAdmin = false }: { isAdmin?: boolean }) {
@@ -129,6 +131,8 @@ export default function Sidebar({
   onSelectNews,
   isNewsActive = false,
   onLogout,
+  isV2Mode = false,
+  onToggleV2,
 }: SidebarProps) {
   const chatSessions = sessions.filter((s) => s.messages.length > 0);
   const userName = typeof window !== 'undefined' ? localStorage.getItem('copilot_user') || 'Аналитик' : 'Аналитик';
@@ -252,8 +256,29 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* Bottom: Model + User */}
+      {/* Bottom: V2 Toggle + Model + User */}
       <div className="border-t border-gray-100">
+        {/* V2 Multi-Agent Toggle */}
+        {onToggleV2 && (
+          <div className="px-4 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Cpu size={14} className={isV2Mode ? 'text-[#E11D48]' : 'text-gray-400'} />
+              <span className="text-xs font-medium text-gray-600">Multi-Agent v2</span>
+            </div>
+            <button
+              onClick={onToggleV2}
+              className={`relative w-9 h-5 rounded-full transition-colors ${
+                isV2Mode ? 'bg-[#E11D48]' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                  isV2Mode ? 'translate-x-4' : ''
+                }`}
+              />
+            </button>
+          </div>
+        )}
         {!isDemo && <ModelSwitcher isAdmin={isAdmin} />}
         <div className="px-4 py-3 border-t border-gray-50 flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">

@@ -30,6 +30,8 @@ interface ChatAreaProps {
   activeSession: ChatSession | null;
   activeSkillId: string | null;
   isStreaming: boolean;
+  isV2Mode?: boolean;
+  activeAgents?: Array<{name: string; role: string; status?: string; elapsed?: number}>;
   onSendMessage: (text: string, attachmentIds?: string[], overrideSkillId?: string) => void;
   onSelectSkill: (skillId: string) => void;
   onStopStreaming: () => void;
@@ -39,6 +41,8 @@ export default function ChatArea({
   activeSession,
   activeSkillId,
   isStreaming,
+  isV2Mode = false,
+  activeAgents = [],
   onSendMessage,
   onSelectSkill,
   onStopStreaming,
@@ -133,6 +137,29 @@ export default function ChatArea({
           {messages.map((msg) => (
             <MessageBubble key={msg.id} message={msg} />
           ))}
+          {/* V2 Agent Progress Indicator */}
+          {isV2Mode && isStreaming && activeAgents.length > 0 && (
+            <div className="mx-4 mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="text-xs font-medium text-gray-500 mb-2">
+                AI Board — {activeAgents.length} аналитиков
+              </div>
+              <div className="space-y-1">
+                {activeAgents.map((agent) => (
+                  <div key={agent.name} className="flex items-center gap-2 text-xs">
+                    <span className={`w-2 h-2 rounded-full ${
+                      agent.status === 'done' ? 'bg-green-500' :
+                      agent.status === 'error' ? 'bg-red-500' :
+                      'bg-yellow-400 animate-pulse'
+                    }`} />
+                    <span className="text-gray-700 flex-1">{agent.role}</span>
+                    {agent.elapsed && (
+                      <span className="text-gray-400">{agent.elapsed}с</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
       )}
