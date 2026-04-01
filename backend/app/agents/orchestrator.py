@@ -7,7 +7,7 @@ Use cases:
   UC2 investment — FinancialAgent + MarketAgent + RiskAgent + BenchmarkAgent → FundDirector
   UC3 market     — MarketAgent (x3 queries) → FundDirector
   UC4 benchmark  — BenchmarkAgent + FinancialAgent → FundDirector
-  UC5 committee  — All 5 agents → FundDirector
+  UC5 committee  — Light (Fin+Risk+Sent) or Full (all 5) → FundDirector
 """
 
 from __future__ import annotations
@@ -101,6 +101,35 @@ def _extract_companies(message: str, context: str) -> list[str]:
     return found[:5]
 
 
+def _is_committee_light(message: str) -> bool:
+    """Detect if a committee query is a portfolio overview (light) vs. specific deal analysis (full).
+
+    Light = executive summary, portfolio review, overview → fewer agents, no Q&A loop.
+    Full = specific deal/investment analysis → all 5 agents + Q&A loop.
+    """
+    msg = message.lower()
+    light_keywords = [
+        "executive summary", "резюме", "обзор портфеля", "обзор для комитета",
+        "общий анализ", "портфельный обзор", "статус портфеля", "summary",
+        "подготовь обзор", "краткое резюме", "сводка", "итоги",
+        "портфельная аналитика", "ключевые показатели", "дашборд",
+    ]
+    full_keywords = [
+        "сделк", "инвестиц", "проект", "npv", "irr", "due diligence",
+        "купить", "продать", "приобретен", "m&a", "ipo ", "оценка компании",
+    ]
+    has_light = any(kw in msg for kw in light_keywords)
+    has_full = any(kw in msg for kw in full_keywords)
+
+    # If explicitly about a deal → full. Otherwise → light.
+    if has_full and not has_light:
+        return False
+    if has_light:
+        return True
+    # Default: if no specific deal mentioned, treat as light
+    return True
+
+
 def _extract_search_queries(message: str, use_case: str) -> list[str]:
     """Generate web search queries based on user message and use case."""
     queries = []
@@ -156,13 +185,25 @@ def build_agents(use_case: str, message: str, context: str) -> list:
         ]
 
     elif use_case == "committee":
-        return [
-            FinancialAgent(context=context, user_query=f"Проверь IRR/NPV, найди противоречия между документами.\n\nЗапрос: {message}"),
-            MarketAgent(context=context, user_query=f"Проверь рыночный контекст и предпосылки.\n\nЗапрос: {message}", search_queries=search_q),
-            RiskAgent(context=context, user_query=f"Найди все red flags, составь DD чеклист и вопросы для менеджмента.\n\nЗапрос: {message}"),
-            SentimentAgent(context=context, user_query=f"Проверь репутацию контрагента и информационный фон.\n\nЗапрос: {message}", companies=companies),
-            BenchmarkAgent(context=context, user_query=f"Сравни мультипликатор сделки с аналогами.\n\nЗапрос: {message}", search_queries=search_q),
-        ]
+        is_light = _is_committee_light(message)
+        if is_light:
+            # Light mode: portfolio overview / executive summary — 3 agents, no WebSearch
+            logger.info("Committee LIGHT mode: Fin + Risk + Sentiment (no WebSearch)")
+            return [
+                FinancialAgent(context=context, user_query=f"Подготовь финансовую сводку по портфелю: ключевые метрики, долговая нагрузка, дивиденды.\n\nЗапрос: {message}"),
+                RiskAgent(context=context, user_query=f"Оцени ключевые риски портфеля, выдели red flags.\n\nЗапрос: {message}"),
+                SentimentAgent(context=context, user_query=f"Кратко оцени информационный фон по ключевым активам.\n\nЗапрос: {message}", companies=companies[:3]),
+            ]
+        else:
+            # Full mode: specific deal/investment analysis — all 5 agents
+            logger.info("Committee FULL mode: all 5 agents + WebSearch")
+            return [
+                FinancialAgent(context=context, user_query=f"Проверь IRR/NPV, найди противоречия между документами.\n\nЗапрос: {message}"),
+                MarketAgent(context=context, user_query=f"Проверь рыночный контекст и предпосылки.\n\nЗапрос: {message}", search_queries=search_q),
+                RiskAgent(context=context, user_query=f"Найди все red flags, составь DD чеклист и вопросы для менеджмента.\n\nЗапрос: {message}"),
+                SentimentAgent(context=context, user_query=f"Проверь репутацию контрагента и информационный фон.\n\nЗапрос: {message}", companies=companies),
+                BenchmarkAgent(context=context, user_query=f"Сравни мультипликатор сделки с аналогами.\n\nЗапрос: {message}", search_queries=search_q),
+            ]
 
     # Fallback
     return [
@@ -232,9 +273,17 @@ async def orchestrate(
             except Exception as e:
                 logger.warning(f"DataGuard parse failed, proceeding: {e}")
 
-    # Step 5: Director Q&A loop (for complex use cases with 3+ agents)
+    # Step 5: Director Q&A loop (only for complex use cases — investment or full committee)
     qa_context = ""
-    if successful_results and use_case in ("investment", "committee") and len(successful_results) >= 3:
+    needs_qa = (
+        successful_results
+        and len(successful_results) >= 3
+        and (
+            use_case == "investment"
+            or (use_case == "committee" and not _is_committee_light(message))
+        )
+    )
+    if needs_qa:
         try:
             qa_context = await run_qa_loop(successful_results, message, context)
             if qa_context:
@@ -303,8 +352,9 @@ async def orchestrate_stream(
         "use_case": use_case,
     })
 
-    # Step 3: Run agents with progress reporting
-    tasks = {a.NAME: asyncio.create_task(a.run()) for a in agents}
+    # Step 3: Run agents with progress reporting + timeout
+    from app.agents.base_agent import AGENT_TIMEOUT_SEC, _run_with_timeout
+    tasks = {a.NAME: asyncio.create_task(_run_with_timeout(a, AGENT_TIMEOUT_SEC)) for a in agents}
     agent_results: list[AgentResult] = []
 
     # Wait for each to complete, emit progress
@@ -350,9 +400,17 @@ async def orchestrate_stream(
             except Exception:
                 pass
 
-    # Step 5: Director Q&A loop (investment + committee only)
+    # Step 5: Director Q&A loop (only for investment or full committee with deal analysis)
     qa_context = ""
-    if successful and use_case in ("investment", "committee") and len(successful) >= 3:
+    needs_qa = (
+        successful
+        and len(successful) >= 3
+        and (
+            use_case == "investment"
+            or (use_case == "committee" and not _is_committee_light(message))
+        )
+    )
+    if needs_qa:
         yield json.dumps({"type": "status", "message": "Директор уточняет у аналитиков..."})
 
         try:

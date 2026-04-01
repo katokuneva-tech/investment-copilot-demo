@@ -81,9 +81,26 @@ class BaseAgent:
         return [{"role": "user", "content": "\n\n".join(parts)}]
 
 
-async def run_agents_parallel(agents: list[BaseAgent]) -> list[AgentResult]:
-    """Run multiple agents concurrently and return all results."""
-    tasks = [agent.run() for agent in agents]
+AGENT_TIMEOUT_SEC = 45  # Max time per agent before timeout
+
+
+async def _run_with_timeout(agent: BaseAgent, timeout: float) -> AgentResult:
+    """Run a single agent with a timeout."""
+    try:
+        return await asyncio.wait_for(agent.run(), timeout=timeout)
+    except asyncio.TimeoutError:
+        logger.warning(f"Agent {agent.NAME} timed out after {timeout}s")
+        return AgentResult(
+            agent_name=agent.NAME,
+            role=agent.ROLE,
+            content="",
+            error=f"Таймаут ({timeout}с)",
+        )
+
+
+async def run_agents_parallel(agents: list[BaseAgent], timeout: float = AGENT_TIMEOUT_SEC) -> list[AgentResult]:
+    """Run multiple agents concurrently with per-agent timeout."""
+    tasks = [_run_with_timeout(agent, timeout) for agent in agents]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     final = []
