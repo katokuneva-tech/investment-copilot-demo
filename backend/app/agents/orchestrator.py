@@ -111,8 +111,7 @@ def _is_committee_light(message: str) -> bool:
     # Only these very specific triggers warrant full 5-agent pipeline
     full_triggers = [
         "рассчитай npv", "рассчитай irr", "оцени сделку", "оценка сделки",
-        "due diligence", "оцени стоимость", "финансовая модель",
-        "мультипликаторы сделки", "implied valuation",
+        "оцени стоимость", "мультипликаторы сделки", "implied valuation",
     ]
     return not any(t in msg for t in full_triggers)
 
@@ -174,12 +173,11 @@ def build_agents(use_case: str, message: str, context: str) -> list:
     elif use_case == "committee":
         is_light = _is_committee_light(message)
         if is_light:
-            # Light mode: portfolio overview / executive summary — 3 agents, no WebSearch
-            logger.info("Committee LIGHT mode: Fin + Risk + Sentiment (no WebSearch)")
+            # Light mode: 2 agents, zero WebSearch — fast document analysis
+            logger.info("Committee LIGHT mode: Fin + Risk (no WebSearch)")
             return [
-                FinancialAgent(context=context, user_query=f"Подготовь финансовую сводку по портфелю: ключевые метрики, долговая нагрузка, дивиденды.\n\nЗапрос: {message}"),
-                RiskAgent(context=context, user_query=f"Оцени ключевые риски портфеля, выдели red flags.\n\nЗапрос: {message}"),
-                SentimentAgent(context=context, user_query=f"Кратко оцени информационный фон по ключевым активам.\n\nЗапрос: {message}", companies=companies[:3]),
+                FinancialAgent(context=context, user_query=f"Проанализируй документы и подготовь финансовую сводку: метрики, противоречия, ключевые цифры.\n\nЗапрос: {message}"),
+                RiskAgent(context=context, user_query=f"Проанализируй документы: red flags, риски, DD чеклист, вопросы для менеджмента.\n\nЗапрос: {message}"),
             ]
         else:
             # Full mode: specific deal/investment analysis — all 5 agents
@@ -241,7 +239,8 @@ async def orchestrate(
     successful_results = [r for r in agent_results if not r.error]
     director_result = None
 
-    if successful_results and len(successful_results) >= 2:
+    # Data Guard only for 3+ agents (skip for light committee with 2 agents — Director handles validation)
+    if successful_results and len(successful_results) >= 3:
         guard = DataGuard(context=context, agent_results=successful_results)
         guard_result = await guard.run()
         agent_results.append(guard_result)  # Track in results
@@ -361,7 +360,8 @@ async def orchestrate_stream(
     # Step 4: Data Guard validation
     successful = [r for r in agent_results if not r.error]
 
-    if successful and len(successful) >= 2:
+    # Data Guard only for 3+ agents (skip for light committee — Director handles validation)
+    if successful and len(successful) >= 3:
         yield json.dumps({"type": "status", "message": "Проверяю данные (Data Guard)..."})
 
         guard = DataGuard(context=context, agent_results=successful)
