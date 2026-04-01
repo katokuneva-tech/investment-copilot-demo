@@ -7,7 +7,7 @@ class FinancialAgent(BaseAgent):
     NAME = "financial_analyst"
     ROLE = "Финансовый аналитик"
     MODEL_TIER = "standard"  # Sonnet for speed; Director does deep synthesis
-    MAX_TOKENS = 4000
+    MAX_TOKENS = 3000
 
     SYSTEM_PROMPT = """Ты — старший финансовый аналитик инвестиционного департамента АФК Система.
 

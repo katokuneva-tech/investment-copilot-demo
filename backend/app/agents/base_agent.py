@@ -81,7 +81,7 @@ class BaseAgent:
         return [{"role": "user", "content": "\n\n".join(parts)}]
 
 
-AGENT_TIMEOUT_SEC = 45  # Max time per agent before timeout
+AGENT_TIMEOUT_SEC = 30  # Max time per agent before timeout
 
 
 async def _run_with_timeout(agent: BaseAgent, timeout: float) -> AgentResult:

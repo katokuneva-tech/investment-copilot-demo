@@ -7,7 +7,7 @@ class RiskAgent(BaseAgent):
     NAME = "risk_analyst"
     ROLE = "Аналитик рисков"
     MODEL_TIER = "standard"  # Sonnet for speed; Director does deep synthesis
-    MAX_TOKENS = 4000
+    MAX_TOKENS = 3000
 
     SYSTEM_PROMPT = """Ты — аналитик рисков инвестиционного комитета АФК Система.
 Ты СКЕПТИК. Ты ЗАЩИТНИК КАПИТАЛА. Ты НЕ на стороне менеджмента проекта.

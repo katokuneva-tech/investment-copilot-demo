@@ -44,7 +44,7 @@ class FundDirector(BaseAgent):
     NAME = "fund_director"
     ROLE = "Инвестиционный директор"
     MODEL_TIER = "standard"  # Sonnet for speed
-    MAX_TOKENS = 6000
+    MAX_TOKENS = 4000
 
     SYSTEM_PROMPT = """Ты — инвестиционный директор АФК Система. Ты получаешь анализы от 5 специализированных аналитиков и синтезируешь финальное заключение.
 

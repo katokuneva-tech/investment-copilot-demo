@@ -11,7 +11,7 @@ class BenchmarkAgent(BaseAgent):
     NAME = "benchmark_analyst"
     ROLE = "Бенчмарк-аналитик"
     MODEL_TIER = "standard"  # Sonnet
-    MAX_TOKENS = 3500
+    MAX_TOKENS = 2500
 
     SYSTEM_PROMPT = """Ты — аналитик по оценке компаний инвестиционного департамента АФК Система.
 

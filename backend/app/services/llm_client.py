@@ -6,8 +6,8 @@ from pathlib import Path
 
 # Retryable HTTP status codes (from Prime Radiant architecture)
 RETRYABLE_STATUSES = {429, 500, 502, 503, 529}
-MAX_RETRIES = 3
-BASE_DELAY = 2.0  # seconds
+MAX_RETRIES = 2
+BASE_DELAY = 1.0  # seconds
 
 # Load .env manually (no extra deps)
 _env_path = Path(__file__).parent.parent.parent / ".env"
@@ -36,7 +36,7 @@ class LLMClient:
     @property
     def http(self):
         if self._http is None:
-            self._http = httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=15.0))
+            self._http = httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0))
         return self._http
 
     async def chat(self, system: str, messages: list[dict], temperature: float = 0.15, tier: str = "standard", max_tokens: int = 4096) -> str:
@@ -147,12 +147,12 @@ class LLMClient:
         except ImportError:
             raise RuntimeError("anthropic package not installed")
 
-        client = anthropic.Anthropic(api_key=self.claude_key)
+        client = anthropic.AsyncAnthropic(api_key=self.claude_key)
         last_error = None
 
         for attempt in range(MAX_RETRIES):
             try:
-                message = client.messages.create(
+                message = await client.messages.create(
                     model=model_override or self.claude_model,
                     max_tokens=max_tokens,
                     system=system,
@@ -184,15 +184,15 @@ class LLMClient:
     async def _stream_claude(self, system: str, messages: list[dict], temperature: float):
         try:
             import anthropic
-            client = anthropic.Anthropic(api_key=self.claude_key)
-            with client.messages.stream(
+            client = anthropic.AsyncAnthropic(api_key=self.claude_key)
+            async with client.messages.stream(
                 model=self.claude_model,
                 max_tokens=4096,
                 system=system,
                 messages=messages,
                 temperature=temperature,
             ) as stream:
-                for text in stream.text_stream:
+                async for text in stream.text_stream:
                     yield text
         except ImportError:
             raise RuntimeError("anthropic package not installed")

@@ -13,9 +13,9 @@ from app.services.analytics import log_request
 router = APIRouter()
 
 
-DOC_CHAR_LIMIT = 4000  # chars per document (was 8000 — halved for speed)
-MAX_TOTAL_CONTEXT = 40000  # hard cap on total context size
-MAX_DOCS = 8  # max documents to include
+DOC_CHAR_LIMIT = 2000  # chars per document — keep compact for speed
+MAX_TOTAL_CONTEXT = 25000  # hard cap on total context size
+MAX_DOCS = 6  # max documents to include
 
 
 def _build_context_v2(skill_id: str, message: str, session_id: str,

@@ -11,7 +11,7 @@ class SentimentAgent(BaseAgent):
     NAME = "sentiment_analyst"
     ROLE = "Аналитик сентимента"
     MODEL_TIER = "standard"  # Sonnet — less critical task
-    MAX_TOKENS = 3000
+    MAX_TOKENS = 2000
 
     SYSTEM_PROMPT = """Ты — аналитик информационных рисков инвестиционного департамента АФК Система.
 

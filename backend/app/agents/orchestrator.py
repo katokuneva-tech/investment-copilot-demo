@@ -102,32 +102,19 @@ def _extract_companies(message: str, context: str) -> list[str]:
 
 
 def _is_committee_light(message: str) -> bool:
-    """Detect if a committee query is a portfolio overview (light) vs. specific deal analysis (full).
+    """Detect if a committee query needs all 5 agents (full) or can use 3 (light).
 
-    Light = executive summary, portfolio review, overview → fewer agents, no Q&A loop.
-    Full = specific deal/investment analysis → all 5 agents + Q&A loop.
+    Full = requires specific financial modeling (NPV/IRR calc, deal valuation, DD).
+    Light = everything else (questions, summaries, overviews, risk lists, protocols).
     """
     msg = message.lower()
-    light_keywords = [
-        "executive summary", "резюме", "обзор портфеля", "обзор для комитета",
-        "общий анализ", "портфельный обзор", "статус портфеля", "summary",
-        "подготовь обзор", "краткое резюме", "сводка", "итоги",
-        "портфельная аналитика", "ключевые показатели", "дашборд",
+    # Only these very specific triggers warrant full 5-agent pipeline
+    full_triggers = [
+        "рассчитай npv", "рассчитай irr", "оцени сделку", "оценка сделки",
+        "due diligence", "оцени стоимость", "финансовая модель",
+        "мультипликаторы сделки", "implied valuation",
     ]
-    full_keywords = [
-        "сделк", "инвестиц", "проект", "npv", "irr", "due diligence",
-        "купить", "продать", "приобретен", "m&a", "ipo ", "оценка компании",
-    ]
-    has_light = any(kw in msg for kw in light_keywords)
-    has_full = any(kw in msg for kw in full_keywords)
-
-    # If explicitly about a deal → full. Otherwise → light.
-    if has_full and not has_light:
-        return False
-    if has_light:
-        return True
-    # Default: if no specific deal mentioned, treat as light
-    return True
+    return not any(t in msg for t in full_triggers)
 
 
 def _extract_search_queries(message: str, use_case: str) -> list[str]:

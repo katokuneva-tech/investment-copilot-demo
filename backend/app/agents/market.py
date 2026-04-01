@@ -11,7 +11,7 @@ class MarketAgent(BaseAgent):
     NAME = "market_analyst"
     ROLE = "Рыночный аналитик"
     MODEL_TIER = "standard"  # Sonnet for speed; Director does deep synthesis
-    MAX_TOKENS = 4000
+    MAX_TOKENS = 3000
 
     SYSTEM_PROMPT = """Ты — рыночный аналитик инвестиционного департамента АФК Система.
 
