@@ -81,7 +81,7 @@ class BaseAgent:
         return [{"role": "user", "content": "\n\n".join(parts)}]
 
 
-AGENT_TIMEOUT_SEC = 30  # Max time per agent before timeout
+AGENT_TIMEOUT_SEC = 45  # Max time per agent before timeout
 
 
 async def _run_with_timeout(agent: BaseAgent, timeout: float) -> AgentResult:
@@ -107,8 +107,13 @@ async def _run_with_timeout(agent: BaseAgent, timeout: float) -> AgentResult:
 
 
 async def run_agents_parallel(agents: list[BaseAgent], timeout: float = AGENT_TIMEOUT_SEC) -> list[AgentResult]:
-    """Run multiple agents concurrently with per-agent timeout."""
-    tasks = [_run_with_timeout(agent, timeout) for agent in agents]
+    """Run multiple agents concurrently with per-agent timeout and staggered start."""
+    # Stagger agent launches by 1s to avoid rate limits on parallel API calls
+    tasks = []
+    for i, agent in enumerate(agents):
+        if i > 0:
+            await asyncio.sleep(1.0)
+        tasks.append(asyncio.create_task(_run_with_timeout(agent, timeout)))
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     final = []
