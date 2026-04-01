@@ -96,6 +96,14 @@ async def _run_with_timeout(agent: BaseAgent, timeout: float) -> AgentResult:
             content="",
             error=f"Таймаут ({timeout}с)",
         )
+    except Exception as e:
+        logger.error(f"Agent {agent.NAME} crashed: {type(e).__name__}: {e}")
+        return AgentResult(
+            agent_name=agent.NAME,
+            role=agent.ROLE,
+            content="",
+            error=f"{type(e).__name__}: {e}",
+        )
 
 
 async def run_agents_parallel(agents: list[BaseAgent], timeout: float = AGENT_TIMEOUT_SEC) -> list[AgentResult]:

@@ -32,12 +32,24 @@ class LLMClient:
         self.claude_model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
         self.claude_model_deep = os.getenv("CLAUDE_MODEL_DEEP", "claude-opus-4-20250514")
         self._http = None
+        self._claude_async = None
 
     @property
     def http(self):
         if self._http is None:
             self._http = httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0))
         return self._http
+
+    @property
+    def claude_async(self):
+        """Reusable async Anthropic client (singleton)."""
+        if self._claude_async is None:
+            try:
+                import anthropic
+                self._claude_async = anthropic.AsyncAnthropic(api_key=self.claude_key)
+            except ImportError:
+                raise RuntimeError("anthropic package not installed")
+        return self._claude_async
 
     async def chat(self, system: str, messages: list[dict], temperature: float = 0.15, tier: str = "standard", max_tokens: int = 4096) -> str:
         # Select model based on tier (for Claude only)
@@ -142,12 +154,8 @@ class LLMClient:
                     continue
 
     async def _call_claude(self, system: str, messages: list[dict], temperature: float, model_override: str = None, max_tokens: int = 4096) -> str:
-        try:
-            import anthropic
-        except ImportError:
-            raise RuntimeError("anthropic package not installed")
-
-        client = anthropic.AsyncAnthropic(api_key=self.claude_key)
+        import anthropic
+        client = self.claude_async
         last_error = None
 
         for attempt in range(MAX_RETRIES):
@@ -182,20 +190,16 @@ class LLMClient:
         raise last_error
 
     async def _stream_claude(self, system: str, messages: list[dict], temperature: float):
-        try:
-            import anthropic
-            client = anthropic.AsyncAnthropic(api_key=self.claude_key)
-            async with client.messages.stream(
-                model=self.claude_model,
-                max_tokens=4096,
-                system=system,
-                messages=messages,
-                temperature=temperature,
-            ) as stream:
-                async for text in stream.text_stream:
-                    yield text
-        except ImportError:
-            raise RuntimeError("anthropic package not installed")
+        client = self.claude_async
+        async with client.messages.stream(
+            model=self.claude_model,
+            max_tokens=4096,
+            system=system,
+            messages=messages,
+            temperature=temperature,
+        ) as stream:
+            async for text in stream.text_stream:
+                yield text
 
 
 # Singleton
