@@ -133,7 +133,7 @@ const MessageBubble = React.memo(function MessageBubble({ message }: MessageBubb
             switch (block.type) {
               case 'text':
                 return (
-                  <div key={i} className="prose prose-sm max-w-none prose-headings:text-gray-800 prose-headings:font-semibold prose-h2:text-base prose-h2:mt-4 prose-h2:mb-2 prose-h2:border-b prose-h2:border-gray-100 prose-h2:pb-1 prose-h3:text-sm prose-h3:mt-3 prose-h3:mb-1 prose-p:text-gray-700 prose-p:leading-relaxed prose-li:text-gray-700 prose-strong:text-gray-900 prose-a:text-[#E11D48] prose-code:text-[#E11D48] prose-code:bg-red-50 prose-code:px-1 prose-code:rounded">
+                  <div key={i} className="prose prose-sm max-w-none text-[13px] prose-headings:text-gray-800 prose-headings:font-semibold prose-h2:text-[13px] prose-h2:mt-3 prose-h2:mb-1.5 prose-h2:border-b prose-h2:border-gray-100 prose-h2:pb-1 prose-h3:text-[13px] prose-h3:mt-2 prose-h3:mb-1 prose-p:text-gray-700 prose-p:text-[13px] prose-p:leading-relaxed prose-li:text-gray-700 prose-li:text-[13px] prose-strong:text-gray-900 prose-a:text-[#E11D48] prose-code:text-[#E11D48] prose-code:bg-red-50 prose-code:px-1 prose-code:rounded">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
