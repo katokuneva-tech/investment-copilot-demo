@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 class MarketAgent(BaseAgent):
     NAME = "market_analyst"
     ROLE = "Рыночный аналитик"
-    MODEL_TIER = "deep"
-    MAX_TOKENS = 6000
+    MODEL_TIER = "standard"  # Sonnet for speed; Director does deep synthesis
+    MAX_TOKENS = 4000
 
     SYSTEM_PROMPT = """Ты — рыночный аналитик инвестиционного департамента АФК Система.
 
@@ -51,8 +51,8 @@ class MarketAgent(BaseAgent):
             search_context = ""
             if self.search_queries:
                 all_results = []
-                for q in self.search_queries[:3]:  # Max 3 queries
-                    results = await web_search(q, max_results=5)
+                for q in self.search_queries[:2]:  # Max 2 queries (was 3)
+                    results = await web_search(q, max_results=3)
                     all_results.extend(results)
                 if all_results:
                     search_context = format_search_results(all_results)

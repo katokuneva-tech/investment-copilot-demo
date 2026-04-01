@@ -43,8 +43,8 @@ QA_DECISION_PROMPT = """Ты — инвестиционный директор. 
 class FundDirector(BaseAgent):
     NAME = "fund_director"
     ROLE = "Инвестиционный директор"
-    MODEL_TIER = "deep"  # Opus for final synthesis
-    MAX_TOKENS = 8000
+    MODEL_TIER = "standard"  # Sonnet for speed
+    MAX_TOKENS = 6000
 
     SYSTEM_PROMPT = """Ты — инвестиционный директор АФК Система. Ты получаешь анализы от 5 специализированных аналитиков и синтезируешь финальное заключение.
 
@@ -179,7 +179,7 @@ async def director_qa_decision(agent_results: list[AgentResult], user_query: str
             system=QA_DECISION_PROMPT,
             messages=[{"role": "user", "content": f"Вопрос пользователя: {user_query}\n\n{context}"}],
             temperature=0.0,
-            tier="deep",
+            tier="standard",
             max_tokens=500,
         )
 

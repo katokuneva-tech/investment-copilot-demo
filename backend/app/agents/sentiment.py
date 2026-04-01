@@ -11,7 +11,7 @@ class SentimentAgent(BaseAgent):
     NAME = "sentiment_analyst"
     ROLE = "Аналитик сентимента"
     MODEL_TIER = "standard"  # Sonnet — less critical task
-    MAX_TOKENS = 4096
+    MAX_TOKENS = 3000
 
     SYSTEM_PROMPT = """Ты — аналитик информационных рисков инвестиционного департамента АФК Система.
 
@@ -49,9 +49,9 @@ class SentimentAgent(BaseAgent):
             search_context = ""
             if self.companies:
                 all_results = []
-                for company in self.companies[:5]:
+                for company in self.companies[:3]:  # Max 3 companies (was 5)
                     results = await web_search(
-                        f"{company} новости 2025 2026", max_results=5
+                        f"{company} новости 2025 2026", max_results=3
                     )
                     all_results.extend(results)
                 if all_results:

@@ -6,8 +6,8 @@ from app.agents.base_agent import BaseAgent
 class RiskAgent(BaseAgent):
     NAME = "risk_analyst"
     ROLE = "Аналитик рисков"
-    MODEL_TIER = "deep"
-    MAX_TOKENS = 6000
+    MODEL_TIER = "standard"  # Sonnet for speed; Director does deep synthesis
+    MAX_TOKENS = 4000
 
     SYSTEM_PROMPT = """Ты — аналитик рисков инвестиционного комитета АФК Система.
 Ты СКЕПТИК. Ты ЗАЩИТНИК КАПИТАЛА. Ты НЕ на стороне менеджмента проекта.

@@ -13,6 +13,11 @@ from app.services.analytics import log_request
 router = APIRouter()
 
 
+DOC_CHAR_LIMIT = 4000  # chars per document (was 8000 — halved for speed)
+MAX_TOTAL_CONTEXT = 40000  # hard cap on total context size
+MAX_DOCS = 8  # max documents to include
+
+
 def _build_context_v2(skill_id: str, message: str, session_id: str,
                       attachment_ids: list[str] | None = None) -> str:
     """Build document context for v2 agents. Reuses existing doc store."""
@@ -21,18 +26,18 @@ def _build_context_v2(skill_id: str, message: str, session_id: str,
 
     parts = []
 
-    # 1. Knowledge base context (always include)
-    kb_text = f"## Обзор АФК Система\n{json.dumps(KB_OVERVIEW, ensure_ascii=False)[:3000]}"
+    # 1. Knowledge base context (always include, compact)
+    kb_text = f"## Обзор АФК Система\n{json.dumps(KB_OVERVIEW, ensure_ascii=False)[:2000]}"
     parts.append(kb_text)
 
-    # 2. Portfolio data
+    # 2. Portfolio data (compact)
     if KB_PORTFOLIO:
-        portfolio_text = json.dumps(KB_PORTFOLIO, ensure_ascii=False)[:5000]
+        portfolio_text = json.dumps(KB_PORTFOLIO, ensure_ascii=False)[:3000]
         parts.append(f"## Портфельные компании\n{portfolio_text}")
 
-    # 3. Financial data
+    # 3. Financial data (compact)
     if KB_FINANCIALS:
-        fin_text = json.dumps(KB_FINANCIALS, ensure_ascii=False)[:5000]
+        fin_text = json.dumps(KB_FINANCIALS, ensure_ascii=False)[:3000]
         parts.append(f"## Финансовые данные\n{fin_text}")
 
     # 4. Uploaded documents (session + global)
@@ -43,12 +48,16 @@ def _build_context_v2(skill_id: str, message: str, session_id: str,
         active_docs += [d for d in doc_store.list_global()
                         if d.id in attachment_ids and d not in active_docs]
 
-    for doc in active_docs[:10]:  # Max 10 docs
+    current_size = sum(len(p) for p in parts)
+    for doc in active_docs[:MAX_DOCS]:
+        if current_size >= MAX_TOTAL_CONTEXT:
+            break
         text = doc_store.get_text(doc.id)
         if text:
-            # Truncate large docs
-            truncated = text[:8000] if len(text) > 8000 else text
-            parts.append(f"## Документ: {doc.original_name}\n{truncated}")
+            truncated = text[:DOC_CHAR_LIMIT] if len(text) > DOC_CHAR_LIMIT else text
+            part = f"## Документ: {doc.original_name}\n{truncated}"
+            current_size += len(part)
+            parts.append(part)
 
     return "\n\n---\n\n".join(parts)
 

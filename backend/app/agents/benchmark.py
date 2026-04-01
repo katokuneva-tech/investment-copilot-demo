@@ -11,7 +11,7 @@ class BenchmarkAgent(BaseAgent):
     NAME = "benchmark_analyst"
     ROLE = "Бенчмарк-аналитик"
     MODEL_TIER = "standard"  # Sonnet
-    MAX_TOKENS = 5000
+    MAX_TOKENS = 3500
 
     SYSTEM_PROMPT = """Ты — аналитик по оценке компаний инвестиционного департамента АФК Система.
 
@@ -50,8 +50,8 @@ class BenchmarkAgent(BaseAgent):
             search_context = ""
             if self.search_queries:
                 all_results = []
-                for q in self.search_queries[:3]:
-                    results = await web_search(q, max_results=5)
+                for q in self.search_queries[:2]:  # Max 2 queries (was 3)
+                    results = await web_search(q, max_results=3)
                     all_results.extend(results)
                 if all_results:
                     search_context = format_search_results(all_results)

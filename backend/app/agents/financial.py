@@ -6,8 +6,8 @@ from app.agents.base_agent import BaseAgent
 class FinancialAgent(BaseAgent):
     NAME = "financial_analyst"
     ROLE = "Финансовый аналитик"
-    MODEL_TIER = "deep"  # Opus for critical financial analysis
-    MAX_TOKENS = 6000
+    MODEL_TIER = "standard"  # Sonnet for speed; Director does deep synthesis
+    MAX_TOKENS = 4000
 
     SYSTEM_PROMPT = """Ты — старший финансовый аналитик инвестиционного департамента АФК Система.
 
