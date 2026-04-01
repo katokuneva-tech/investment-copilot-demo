@@ -193,20 +193,7 @@ export default function Sidebar({
           <span>База знаний</span>
         </button>
 
-        {/* News Monitoring */}
-        {onSelectNews && (
-          <button
-            onClick={onSelectNews}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors text-left mt-1 ${
-              isNewsActive
-                ? 'bg-red-50 text-[#E11D48] font-medium'
-                : 'text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            <Newspaper size={16} className={isNewsActive ? 'text-[#E11D48]' : 'text-gray-400'} />
-            <span>Новости</span>
-          </button>
-        )}
+        {/* News Monitoring — removed */}
 
         {/* Analytics (admin only) */}
         {isAdmin && onSelectAnalytics && (
