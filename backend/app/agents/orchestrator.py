@@ -24,7 +24,7 @@ from app.agents.market import MarketAgent
 from app.agents.risk import RiskAgent
 from app.agents.sentiment import SentimentAgent
 from app.agents.benchmark import BenchmarkAgent
-from app.agents.fund_director import FundDirector
+from app.agents.fund_director import FundDirector, run_qa_loop
 from app.agents.data_guard import DataGuard, apply_corrections
 from app.services.llm_client import llm_client
 
@@ -232,16 +232,27 @@ async def orchestrate(
             except Exception as e:
                 logger.warning(f"DataGuard parse failed, proceeding: {e}")
 
-    # Step 5: Synthesize via FundDirector
+    # Step 5: Director Q&A loop (for complex use cases with 3+ agents)
+    qa_context = ""
+    if successful_results and use_case in ("investment", "committee") and len(successful_results) >= 3:
+        try:
+            qa_context = await run_qa_loop(successful_results, message, context)
+            if qa_context:
+                logger.info(f"Director Q&A: received follow-up answers ({len(qa_context)} chars)")
+        except Exception as e:
+            logger.warning(f"Director Q&A loop failed, proceeding: {e}")
+
+    # Step 6: Synthesize via FundDirector
     if successful_results:
         director = FundDirector.synthesize(
             agent_results=successful_results,
             user_query=message,
             use_case=use_case,
+            qa_context=qa_context,
         )
         director_result = await director.run()
 
-    # Step 5: Build final answer
+    # Build final answer
     if director_result and not director_result.error:
         final_answer = director_result.content
     elif successful_results:
@@ -339,7 +350,26 @@ async def orchestrate_stream(
             except Exception:
                 pass
 
-    # Step 5: Synthesize
+    # Step 5: Director Q&A loop (investment + committee only)
+    qa_context = ""
+    if successful and use_case in ("investment", "committee") and len(successful) >= 3:
+        yield json.dumps({"type": "status", "message": "Директор уточняет у аналитиков..."})
+
+        try:
+            qa_context = await run_qa_loop(successful, message, context)
+            if qa_context:
+                yield json.dumps({
+                    "type": "agent_progress",
+                    "agent": "director_qa",
+                    "role": "Q&A Директора",
+                    "status": "done",
+                    "elapsed": 0,
+                    "preview": f"Получены ответы на уточняющие вопросы",
+                })
+        except Exception:
+            pass
+
+    # Step 6: Synthesize
     yield json.dumps({"type": "status", "message": "Синтезирую заключение..."})
 
     if successful:
@@ -347,6 +377,7 @@ async def orchestrate_stream(
             agent_results=successful,
             user_query=message,
             use_case=use_case,
+            qa_context=qa_context,
         )
 
         # Stream the director's response
