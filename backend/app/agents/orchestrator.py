@@ -87,9 +87,9 @@ async def classify_intent(message: str) -> str:
 
 def _extract_companies(message: str, context: str) -> list[str]:
     """Extract company names mentioned in message/context for news search."""
-    known = ["МТС", "Ozon", "Segezha", "Эталон", "МЕДСИ", "Биннофарм",
-             "СТЕПЬ", "Cosmos", "Natura Siberica", "Concept Club",
-             "АФК Система", "Sitronics", "Aeromax"]
+    known = ["МТС", "Segezha", "Эталон", "МЕДСИ", "Биннофарм",
+             "СТЕПЬ", "Cosmos Hotel Group", "Natura Siberica",
+             "АФК Система"]
     found = []
     text = (message + " " + context).lower()
     for c in known:
@@ -97,7 +97,7 @@ def _extract_companies(message: str, context: str) -> list[str]:
             found.append(c)
     # If no specific company mentioned and it's a portfolio question, include top ones
     if not found:
-        found = ["АФК Система", "МТС", "Ozon", "Segezha", "Эталон"]
+        found = ["АФК Система", "МТС", "Segezha", "Эталон", "СТЕПЬ"]
     return found[:5]
 
 
