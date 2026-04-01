@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { User, Bot } from 'lucide-react';
 import { Message } from '@/lib/types';
-import { exportBlocks, getReportUrl } from '@/lib/api';
+import { getReportUrl } from '@/lib/api';
 import RichTable from './RichTable';
 import RichChart from './RichChart';
 import PdfDownload from './PdfDownload';
@@ -76,23 +76,7 @@ const MessageBubble = React.memo(function MessageBubble({ message }: MessageBubb
                 return null;
             }
           })}
-          {/* Export button — only show if no auto-generated pdf_link exists */}
-          {message.blocks.length > 0 && !message.blocks.some(b => b.type === 'pdf_link') && message.blocks.some(b => b.type === 'text' && String(b.data).length > 100) && (
-            <div className="mt-2 pt-2 border-t border-gray-100">
-              <button
-                onClick={async () => {
-                  try {
-                    const url = await exportBlocks(message.blocks, message.blocks[0]?.data?.toString().slice(0, 50) || 'Ответ');
-                    window.open(getReportUrl(url.split('/').pop() || ''), '_blank');
-                  } catch (e) { console.error('Export failed:', e); }
-                }}
-                className="text-[11px] text-gray-400 hover:text-[#E11D48] transition-colors flex items-center gap-1"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Экспорт в PDF
-              </button>
-            </div>
-          )}
+          {/* PDF export removed — unreliable on ephemeral hosting */}
           {/* Thinking steps */}
           {message.thinkingSteps && message.thinkingSteps.length > 0 && (
             <ThinkingSteps
