@@ -25,6 +25,7 @@ from app.agents.risk import RiskAgent
 from app.agents.sentiment import SentimentAgent
 from app.agents.benchmark import BenchmarkAgent
 from app.agents.fund_director import FundDirector
+from app.agents.data_guard import DataGuard, apply_corrections
 from app.services.llm_client import llm_client
 
 logger = logging.getLogger(__name__)
@@ -208,10 +209,30 @@ async def orchestrate(
         status = "OK" if not r.error else f"ERROR: {r.error}"
         logger.info(f"  {r.agent_name}: {status} ({r.elapsed_sec}s)")
 
-    # Step 4: Synthesize via FundDirector
+    # Step 4: Data Guard — cross-validate analyst reports
     successful_results = [r for r in agent_results if not r.error]
     director_result = None
 
+    if successful_results and len(successful_results) >= 2:
+        guard = DataGuard(context=context, agent_results=successful_results)
+        guard_result = await guard.run()
+        agent_results.append(guard_result)  # Track in results
+
+        if guard_result.content:
+            try:
+                parsed = guard.parse_result()
+                parsed["_raw"] = guard_result.content  # Preserve for debugging
+                guard_result.content = guard_result.content  # Keep original for logging
+                n_issues = len(parsed.get("issues", []))
+                logger.info(f"DataGuard: status={parsed.get('status')}, issues={n_issues}")
+
+                if parsed.get("status") == "corrections_needed" and n_issues > 0:
+                    successful_results = apply_corrections(successful_results, parsed)
+                    logger.info(f"DataGuard: applied corrections to {n_issues} issues")
+            except Exception as e:
+                logger.warning(f"DataGuard parse failed, proceeding: {e}")
+
+    # Step 5: Synthesize via FundDirector
     if successful_results:
         director = FundDirector.synthesize(
             agent_results=successful_results,
@@ -289,10 +310,38 @@ async def orchestrate_stream(
             "preview": result.content[:200] if result.content else result.error or "",
         })
 
-    # Step 4: Synthesize
+    # Step 4: Data Guard validation
+    successful = [r for r in agent_results if not r.error]
+
+    if successful and len(successful) >= 2:
+        yield json.dumps({"type": "status", "message": "Проверяю данные (Data Guard)..."})
+
+        guard = DataGuard(context=context, agent_results=successful)
+        guard_result = await guard.run()
+
+        if guard_result.content and not guard_result.error:
+            try:
+                parsed = guard.parse_result()
+                n_issues = len(parsed.get("issues", []))
+                guard_status = parsed.get("status", "validated")
+
+                yield json.dumps({
+                    "type": "agent_progress",
+                    "agent": "data_guard",
+                    "role": "Data Guard",
+                    "status": "done",
+                    "elapsed": guard_result.elapsed_sec,
+                    "preview": f"{guard_status}: {n_issues} issues" if n_issues else "validated",
+                })
+
+                if guard_status == "corrections_needed" and n_issues > 0:
+                    successful = apply_corrections(successful, parsed)
+            except Exception:
+                pass
+
+    # Step 5: Synthesize
     yield json.dumps({"type": "status", "message": "Синтезирую заключение..."})
 
-    successful = [r for r in agent_results if not r.error]
     if successful:
         director = FundDirector.synthesize(
             agent_results=successful,

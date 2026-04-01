@@ -1,7 +1,13 @@
 import os
 import json
+import asyncio
 import httpx
 from pathlib import Path
+
+# Retryable HTTP status codes (from Prime Radiant architecture)
+RETRYABLE_STATUSES = {429, 500, 502, 503, 529}
+MAX_RETRIES = 3
+BASE_DELAY = 2.0  # seconds
 
 # Load .env manually (no extra deps)
 _env_path = Path(__file__).parent.parent.parent / ".env"
@@ -138,17 +144,42 @@ class LLMClient:
     async def _call_claude(self, system: str, messages: list[dict], temperature: float, model_override: str = None, max_tokens: int = 4096) -> str:
         try:
             import anthropic
-            client = anthropic.Anthropic(api_key=self.claude_key)
-            message = client.messages.create(
-                model=model_override or self.claude_model,
-                max_tokens=max_tokens,
-                system=system,
-                messages=messages,
-                temperature=temperature,
-            )
-            return message.content[0].text
         except ImportError:
             raise RuntimeError("anthropic package not installed")
+
+        client = anthropic.Anthropic(api_key=self.claude_key)
+        last_error = None
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                message = client.messages.create(
+                    model=model_override or self.claude_model,
+                    max_tokens=max_tokens,
+                    system=system,
+                    messages=messages,
+                    temperature=temperature,
+                )
+                return message.content[0].text
+            except anthropic.RateLimitError as e:
+                last_error = e
+                delay = BASE_DELAY * (2 ** attempt)
+                print(f"[LLM] Rate limited (attempt {attempt+1}/{MAX_RETRIES}), retrying in {delay}s...")
+                await asyncio.sleep(delay)
+            except anthropic.APIStatusError as e:
+                if e.status_code in RETRYABLE_STATUSES:
+                    last_error = e
+                    delay = BASE_DELAY * (2 ** attempt)
+                    print(f"[LLM] API error {e.status_code} (attempt {attempt+1}/{MAX_RETRIES}), retrying in {delay}s...")
+                    await asyncio.sleep(delay)
+                else:
+                    raise
+            except anthropic.APIConnectionError as e:
+                last_error = e
+                delay = BASE_DELAY * (2 ** attempt)
+                print(f"[LLM] Connection error (attempt {attempt+1}/{MAX_RETRIES}), retrying in {delay}s...")
+                await asyncio.sleep(delay)
+
+        raise last_error
 
     async def _stream_claude(self, system: str, messages: list[dict], temperature: float):
         try:
