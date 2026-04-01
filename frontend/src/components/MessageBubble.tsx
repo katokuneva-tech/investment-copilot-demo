@@ -3,7 +3,7 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { User, Bot } from 'lucide-react';
+import { User, Bot, Download } from 'lucide-react';
 import { Message } from '@/lib/types';
 import { getReportUrl } from '@/lib/api';
 import RichTable from './RichTable';
@@ -11,6 +11,93 @@ import RichChart from './RichChart';
 import PdfDownload from './PdfDownload';
 import SourceCitation from './SourceCitation';
 import ThinkingSteps from './ThinkingSteps';
+
+function exportToPdf(message: Message) {
+  // Collect all text blocks as markdown
+  const textParts = message.blocks
+    .filter(b => b.type === 'text')
+    .map(b => String(b.data));
+  const markdown = textParts.join('\n\n');
+
+  // Convert basic markdown to HTML
+  let html = markdown
+    // Headers
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    // Bold
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // Italic
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    // Bullet lists
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    // Numbered lists
+    .replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>')
+    // Paragraphs (double newline)
+    .replace(/\n\n/g, '</p><p>')
+    // Single newlines within paragraphs
+    .replace(/\n/g, '<br/>');
+
+  // Wrap consecutive <li> in <ul>
+  html = html.replace(/(<li>[^]*?<\/li>(?:<br\/>)?)+/g, (match) => {
+    return '<ul>' + match.replace(/<br\/>/g, '') + '</ul>';
+  });
+
+  // Simple markdown table → HTML table
+  const tableRegex = /\|(.+)\|\s*\n\|[-| :]+\|\s*\n((?:\|.+\|\s*\n?)+)/g;
+  html = html.replace(tableRegex, (_match, headerRow, bodyRows) => {
+    const headers = headerRow.split('|').map((h: string) => h.trim()).filter(Boolean);
+    const rows = bodyRows.trim().split('\n').map((row: string) =>
+      row.split('|').map((c: string) => c.trim()).filter(Boolean)
+    );
+    let table = '<table><thead><tr>';
+    headers.forEach((h: string) => { table += `<th>${h}</th>`; });
+    table += '</tr></thead><tbody>';
+    rows.forEach((row: string[]) => {
+      table += '<tr>';
+      row.forEach((c: string) => { table += `<td>${c}</td>`; });
+      table += '</tr>';
+    });
+    table += '</tbody></table>';
+    return table;
+  });
+
+  const now = new Date().toLocaleDateString('ru-RU');
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+
+  printWindow.document.write(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>MWS AI — Отчёт</title>
+<style>
+  @page { margin: 20mm 15mm; size: A4; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1e293b; font-size: 11pt; line-height: 1.6; max-width: 700px; margin: 0 auto; padding: 20px; }
+  h1 { font-size: 18pt; color: #E11D48; border-bottom: 2px solid #E11D48; padding-bottom: 6px; }
+  h2 { font-size: 14pt; color: #1a2b4a; margin-top: 20px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
+  h3 { font-size: 12pt; color: #374151; margin-top: 14px; }
+  p { margin: 6px 0; }
+  ul { padding-left: 20px; }
+  li { margin: 3px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 9pt; }
+  th { background: #1a2b4a; color: white; padding: 6px 8px; text-align: left; border: 1px solid #1a2b4a; }
+  td { padding: 5px 8px; border: 1px solid #e5e7eb; }
+  tr:nth-child(even) { background: #f8fafc; }
+  strong { color: #111827; }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #E11D48; }
+  .logo { font-size: 20pt; font-weight: bold; color: #E11D48; }
+  .meta { font-size: 9pt; color: #9ca3af; text-align: right; }
+  .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #e5e7eb; font-size: 8pt; color: #9ca3af; text-align: center; }
+  @media print { body { padding: 0; } .no-print { display: none; } }
+</style></head><body>
+<div class="header">
+  <div class="logo">MWS</div>
+  <div class="meta">AI Corporate Copilot Hub<br/>АФК Система<br/>${now}</div>
+</div>
+<p>${html}</p>
+<div class="footer">MWS AI Corporate Copilot Hub · Конфиденциально · ${now}</div>
+<script>window.onload = function() { window.print(); }</script>
+</body></html>`);
+  printWindow.document.close();
+}
 
 interface MessageBubbleProps {
   message: Message;
@@ -76,7 +163,18 @@ const MessageBubble = React.memo(function MessageBubble({ message }: MessageBubb
                 return null;
             }
           })}
-          {/* PDF export removed — unreliable on ephemeral hosting */}
+          {/* Client-side PDF export via browser print */}
+          {message.blocks.length > 0 && message.blocks.some(b => b.type === 'text' && String(b.data).length > 100) && (
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <button
+                onClick={() => exportToPdf(message)}
+                className="text-[11px] text-gray-400 hover:text-[#E11D48] transition-colors flex items-center gap-1"
+              >
+                <Download size={11} />
+                Сохранить в PDF
+              </button>
+            </div>
+          )}
           {/* Thinking steps */}
           {message.thinkingSteps && message.thinkingSteps.length > 0 && (
             <ThinkingSteps
