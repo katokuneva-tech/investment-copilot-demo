@@ -3,6 +3,7 @@ V2 Chat API — multi-agent architecture.
 Runs alongside v1 endpoints without breaking existing functionality.
 """
 
+import asyncio
 import json
 import time
 from fastapi import APIRouter, Request
@@ -131,12 +132,19 @@ async def chat_v2_stream(req: ChatRequest, request: Request):
                 req.skill_id, req.message, req.session_id, req.attachment_ids
             )
 
+            # Track time between events for heartbeat (prevents proxy/client timeouts)
+            last_event_time = time.monotonic()
             async for event_data in orchestrate_stream(
                 skill_id=req.skill_id,
                 message=req.message,
                 context=context,
                 history=req.history,
             ):
+                # Send heartbeat if >15s since last event
+                now = time.monotonic()
+                if now - last_event_time > 15:
+                    yield {"data": json.dumps({"type": "heartbeat"})}
+                last_event_time = now
                 yield {"data": event_data}
 
             elapsed_ms = int((time.time() - t0) * 1000)

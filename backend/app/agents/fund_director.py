@@ -186,9 +186,13 @@ async def director_qa_decision(agent_results: list[AgentResult], user_query: str
         # Parse JSON from response
         text = response.strip()
         if "```json" in text:
-            text = text.split("```json")[1].split("```")[0]
+            parts = text.split("```json")
+            if len(parts) > 1:
+                text = parts[1].split("```")[0]
         elif "```" in text:
-            text = text.split("```")[1].split("```")[0]
+            parts = text.split("```")
+            if len(parts) > 1:
+                text = parts[1].split("```")[0]
 
         parsed = json.loads(text.strip())
         return parsed

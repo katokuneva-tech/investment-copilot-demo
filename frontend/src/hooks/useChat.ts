@@ -258,7 +258,26 @@ export function useChat() {
             ]);
             break;
           }
+          case 'heartbeat': {
+            // Keepalive from server — ignore
+            break;
+          }
           case 'done': {
+            // Check if assistant message ended up empty — show error instead of blank
+            setSessions((prev) =>
+              prev.map((s) =>
+                s.id === sessionId
+                  ? {
+                      ...s,
+                      messages: s.messages.map((m) =>
+                        m.id === assistantId && m.blocks.length === 0
+                          ? { ...m, blocks: [{ type: 'text' as const, data: 'Не удалось получить ответ. Попробуйте ещё раз.' }] }
+                          : m,
+                      ),
+                    }
+                  : s,
+              ),
+            );
             setIsStreaming(false);
             setActiveAgents([]);
             abortRef.current = null;

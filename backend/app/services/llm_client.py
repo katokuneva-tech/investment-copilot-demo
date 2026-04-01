@@ -30,7 +30,7 @@ class LLMClient:
         self.cotype_model = os.getenv("COTYPE_MODEL", "cotype_pro_2.6")
         self.claude_key = os.getenv("ANTHROPIC_API_KEY", "")
         self.claude_model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
-        self.claude_model_deep = os.getenv("CLAUDE_MODEL_DEEP", "claude-opus-4-20250514")
+        self.claude_model_deep = os.getenv("CLAUDE_MODEL_DEEP") or self.claude_model
         self._http = None
         self._claude_async = None
 
@@ -117,7 +117,13 @@ class LLMClient:
         )
         resp.raise_for_status()
         data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        choices = data.get("choices")
+        if not choices:
+            raise ValueError("Cotype API returned empty choices")
+        content = choices[0].get("message", {}).get("content", "")
+        if not content or not content.strip():
+            raise ValueError("Cotype API returned empty content")
+        return content
 
     async def _stream_cotype(self, system: str, messages: list[dict], temperature: float):
         all_messages = [{"role": "system", "content": system}] + messages
@@ -167,7 +173,12 @@ class LLMClient:
                     messages=messages,
                     temperature=temperature,
                 )
-                return message.content[0].text
+                if not message.content:
+                    raise ValueError("Claude API returned empty content list")
+                text = message.content[0].text
+                if not text or not text.strip():
+                    raise ValueError("Claude API returned empty text")
+                return text
             except anthropic.RateLimitError as e:
                 last_error = e
                 delay = BASE_DELAY * (2 ** attempt)
@@ -191,6 +202,7 @@ class LLMClient:
 
     async def _stream_claude(self, system: str, messages: list[dict], temperature: float):
         client = self.claude_async
+        has_content = False
         async with client.messages.stream(
             model=self.claude_model,
             max_tokens=4096,
@@ -199,7 +211,11 @@ class LLMClient:
             temperature=temperature,
         ) as stream:
             async for text in stream.text_stream:
-                yield text
+                if text:
+                    has_content = True
+                    yield text
+        if not has_content:
+            yield "Не удалось получить ответ от модели. Попробуйте повторить запрос."
 
 
 # Singleton

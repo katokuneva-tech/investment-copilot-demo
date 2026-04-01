@@ -215,8 +215,8 @@ async def orchestrate(
     """
     start = time.monotonic()
 
-    # Step 1: Intent classification
-    if skill_id == "auto":
+    # Step 1: Intent classification (skip if client already chose a skill)
+    if skill_id == "auto" or skill_id not in USE_CASE_MAP:
         skill_id = await classify_intent(message)
     use_case = USE_CASE_MAP.get(skill_id, "portfolio")
 
@@ -277,7 +277,7 @@ async def orchestrate(
         except Exception as e:
             logger.warning(f"Director Q&A loop failed, proceeding: {e}")
 
-    # Step 6: Synthesize via FundDirector
+    # Step 6: Synthesize via FundDirector (with 50s timeout)
     if successful_results:
         director = FundDirector.synthesize(
             agent_results=successful_results,
@@ -285,10 +285,14 @@ async def orchestrate(
             use_case=use_case,
             qa_context=qa_context,
         )
-        director_result = await director.run()
+        try:
+            director_result = await asyncio.wait_for(director.run(), timeout=50)
+        except asyncio.TimeoutError:
+            logger.error("FundDirector timed out after 50s, falling back to agent concatenation")
+            director_result = None
 
     # Build final answer
-    if director_result and not director_result.error:
+    if director_result and not director_result.error and director_result.content and director_result.content.strip():
         final_answer = director_result.content
     elif successful_results:
         # Fallback: concatenate agent results
@@ -322,8 +326,8 @@ async def orchestrate_stream(
     """
     import json
 
-    # Step 1: Classify
-    if skill_id == "auto":
+    # Step 1: Classify (skip if client already chose a skill)
+    if skill_id == "auto" or skill_id not in USE_CASE_MAP:
         skill_id = await classify_intent(message)
     use_case = USE_CASE_MAP.get(skill_id, "portfolio")
 
@@ -343,7 +347,7 @@ async def orchestrate_stream(
     tasks = {}
     for i, a in enumerate(agents):
         if i > 0:
-            await asyncio.sleep(1.5)  # Stagger to avoid rate limits
+            await asyncio.sleep(0.5)  # Stagger to avoid rate limits
         tasks[a.NAME] = asyncio.create_task(_run_with_timeout(a, AGENT_TIMEOUT_SEC))
     agent_results: list[AgentResult] = []
 
@@ -430,7 +434,8 @@ async def orchestrate_stream(
             qa_context=qa_context,
         )
 
-        # Stream the director's response
+        # Stream the director's response with empty-check
+        has_streamed_content = False
         try:
             messages = director._build_messages()
             async for chunk in llm_client.stream(
@@ -438,11 +443,29 @@ async def orchestrate_stream(
                 messages=messages,
                 temperature=0.15,
             ):
+                if chunk and chunk.strip():
+                    has_streamed_content = True
                 yield json.dumps({"type": "text", "content": chunk})
         except Exception as e:
+            logger.error(f"Director streaming failed: {e}")
             # Fallback to non-streaming
-            result = await director.run()
-            yield json.dumps({"type": "text", "content": result.content})
+            try:
+                result = await asyncio.wait_for(director.run(), timeout=50)
+                if result.content and result.content.strip():
+                    has_streamed_content = True
+                    yield json.dumps({"type": "text", "content": result.content})
+            except (asyncio.TimeoutError, Exception) as e2:
+                logger.error(f"Director non-streaming fallback also failed: {e2}")
+
+        # If director yielded nothing, fallback to concatenated agent reports
+        if not has_streamed_content:
+            fallback = "\n\n---\n\n".join(
+                f"## {r.role}\n{r.content}" for r in successful if r.content
+            )
+            if fallback.strip():
+                yield json.dumps({"type": "text", "content": fallback})
+            else:
+                yield json.dumps({"type": "text", "content": "Не удалось сформировать ответ. Попробуйте переформулировать вопрос."})
     else:
         yield json.dumps({
             "type": "text",

@@ -69,6 +69,10 @@ def parse_llm_response(raw: str) -> list[ContentBlock]:
     if not blocks and raw.strip():
         blocks.append(ContentBlock(type="text", data=raw.strip()))
 
+    # Guarantee non-empty response: always return at least one block
+    if not blocks:
+        blocks.append(ContentBlock(type="text", data="Не удалось сформировать ответ. Попробуйте переформулировать вопрос."))
+
     return blocks
 
 

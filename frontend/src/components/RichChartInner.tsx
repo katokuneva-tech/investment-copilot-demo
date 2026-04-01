@@ -28,7 +28,11 @@ interface RichChartInnerProps {
 export default function RichChartInner({ data }: RichChartInnerProps) {
   const { chart_type, title, x_key, series: rawSeries, data: rawChartData } = data;
 
-  if (!rawChartData || !rawSeries) return null;
+  if (!rawChartData || !rawSeries) return (
+    <div className="my-3 p-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-400">
+      Данные графика недоступны
+    </div>
+  );
 
   // Normalize series: backend may send "data_key" instead of "key"
   const series: NormalizedSeries[] = rawSeries.map((s: ChartSeries & { data_key?: string }) => ({

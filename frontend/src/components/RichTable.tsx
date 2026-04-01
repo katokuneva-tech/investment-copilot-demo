@@ -10,7 +10,11 @@ interface RichTableProps {
 export default function RichTable({ data }: RichTableProps) {
   const { headers, rows, caption } = data;
 
-  if (!headers || !rows) return null;
+  if (!headers || !rows) return (
+    <div className="my-3 p-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-400">
+      Данные таблицы недоступны
+    </div>
+  );
 
   return (
     <div className="my-3 overflow-x-auto rounded-lg border border-gray-200">

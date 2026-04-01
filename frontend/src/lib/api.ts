@@ -19,7 +19,8 @@ export type SSEEvent =
   | { type: 'agents_started'; agents: AgentInfo[]; use_case: string }
   | { type: 'agent_progress'; agent: string; role: string; status: string; elapsed: number; preview: string }
   | { type: 'text'; content: string }
-  | { type: 'error'; content: string };
+  | { type: 'error'; content: string }
+  | { type: 'heartbeat' };
 
 export async function streamChat(
   skillId: string,
@@ -172,7 +173,7 @@ export async function fetchDocuments(): Promise<KBDocument[]> {
   const res = await fetch(`${API_BASE_URL}/api/documents`, { headers: authHeaders() });
   if (!res.ok) throw new Error('Failed to fetch documents');
   const data = await res.json();
-  return data.documents;
+  return Array.isArray(data.documents) ? data.documents : [];
 }
 
 export async function uploadDocument(file: File): Promise<KBDocument> {

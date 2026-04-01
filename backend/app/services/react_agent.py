@@ -1,4 +1,5 @@
 """ReAct agent: Reason + Act with tool use and verification."""
+import asyncio
 import json, re
 from app.services.llm_client import llm_client
 from app.services.tools import get_tools_description, execute_tool
@@ -63,6 +64,9 @@ MAX_ITERATIONS = 4
 
 DOCUMENT_HEAVY_SKILLS = {"committee_advisor", "investment_analysis"}
 
+REACT_TIMEOUT_SEC = 90  # Total timeout for the entire ReAct loop
+
+
 async def run_react_agent(
     message: str,
     skill_prompt: str,
@@ -71,6 +75,23 @@ async def run_react_agent(
     skill_id: str = "",
 ) -> tuple[str, list[dict]]:
     """Run ReAct agent loop. Returns (final_answer, tool_calls_log)."""
+    try:
+        return await asyncio.wait_for(
+            _run_react_agent_inner(message, skill_prompt, context, history, skill_id),
+            timeout=REACT_TIMEOUT_SEC,
+        )
+    except asyncio.TimeoutError:
+        return "Превышено время ожидания анализа. Попробуйте упростить вопрос.", []
+
+
+async def _run_react_agent_inner(
+    message: str,
+    skill_prompt: str,
+    context: str,
+    history: list[dict] = None,
+    skill_id: str = "",
+) -> tuple[str, list[dict]]:
+    """Inner ReAct loop implementation."""
 
     tools_desc = get_tools_description()
     system = REACT_SYSTEM.format(tools=tools_desc) + "\n\n" + skill_prompt

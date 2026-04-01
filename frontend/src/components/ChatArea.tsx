@@ -78,6 +78,7 @@ export default function ChatArea({
         setAttachedFiles(prev => [...prev, doc]);
       } catch (err) {
         console.error('Upload failed:', err);
+        alert(`Не удалось загрузить файл ${file.name}. Попробуйте ещё раз.`);
       }
     }
     if (fileInputRef.current) fileInputRef.current.value = '';

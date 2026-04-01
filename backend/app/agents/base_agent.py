@@ -108,11 +108,11 @@ async def _run_with_timeout(agent: BaseAgent, timeout: float) -> AgentResult:
 
 async def run_agents_parallel(agents: list[BaseAgent], timeout: float = AGENT_TIMEOUT_SEC) -> list[AgentResult]:
     """Run multiple agents concurrently with per-agent timeout and staggered start."""
-    # Stagger agent launches by 1s to avoid rate limits on parallel API calls
+    # Stagger agent launches by 0.5s to avoid rate limits on parallel API calls
     tasks = []
     for i, agent in enumerate(agents):
         if i > 0:
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(0.5)
         tasks.append(asyncio.create_task(_run_with_timeout(agent, timeout)))
     results = await asyncio.gather(*tasks, return_exceptions=True)
 

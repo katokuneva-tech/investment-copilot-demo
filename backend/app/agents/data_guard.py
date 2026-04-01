@@ -112,11 +112,15 @@ class DataGuard(BaseAgent):
             # Extract JSON from response (may be wrapped in markdown code block)
             text = self.content if hasattr(self, 'content') else ""
             if "```json" in text:
-                text = text.split("```json")[1].split("```")[0]
+                parts = text.split("```json")
+                if len(parts) > 1:
+                    text = parts[1].split("```")[0]
             elif "```" in text:
-                text = text.split("```")[1].split("```")[0]
+                parts = text.split("```")
+                if len(parts) > 1:
+                    text = parts[1].split("```")[0]
             return json.loads(text.strip())
-        except (json.JSONDecodeError, IndexError):
+        except (json.JSONDecodeError, IndexError, ValueError):
             return {"status": "validated", "issues": [], "summary": "Parse error, proceeding."}
 
 
