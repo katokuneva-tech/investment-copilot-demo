@@ -8,7 +8,7 @@ import KnowledgeBase from './KnowledgeBase';
 import CommitteeView from './CommitteeView';
 import LoginScreen from './LoginScreen';
 import AnalyticsDashboard from './AnalyticsDashboard';
-import NewsMonitoring from './NewsMonitoring';
+
 
 export default function AppShell() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -21,17 +21,15 @@ export default function AppShell() {
     activeSessionId,
     activeSkillId,
     isStreaming,
-    isV2Mode,
     activeAgents,
     sendMessage,
     startNewChat,
     selectSession,
     selectSkill,
     stopStreaming,
-    toggleV2Mode,
   } = useChat();
 
-  const [view, setView] = useState<'chat' | 'kb' | 'committee' | 'analytics' | 'news'>('chat');
+  const [view, setView] = useState<'chat' | 'kb' | 'committee' | 'analytics'>('chat');
 
   // Check existing token on mount
   useEffect(() => {
@@ -108,11 +106,7 @@ export default function AppShell() {
         isDemo={userRole === 'demo'}
         onSelectAnalytics={userRole === 'admin' ? () => setView('analytics') : undefined}
         isAnalyticsActive={view === 'analytics'}
-        onSelectNews={() => setView('news')}
-        isNewsActive={view === 'news'}
         onLogout={handleLogout}
-        isV2Mode={isV2Mode}
-        onToggleV2={toggleV2Mode}
       />
       {view === 'kb' ? (
         <KnowledgeBase />
@@ -120,14 +114,11 @@ export default function AppShell() {
         <CommitteeView />
       ) : view === 'analytics' && userRole === 'admin' ? (
         <AnalyticsDashboard />
-      ) : view === 'news' ? (
-        <NewsMonitoring />
       ) : (
         <ChatArea
           activeSession={activeSession}
           activeSkillId={activeSkillId || 'auto'}
           isStreaming={isStreaming}
-          isV2Mode={isV2Mode}
           activeAgents={activeAgents}
           onSendMessage={sendMessage}
           onSelectSkill={handleSelectSkill}

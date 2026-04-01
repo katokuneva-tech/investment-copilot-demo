@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { ChatSession, Message, ContentBlock, ThinkingStep } from '@/lib/types';
-import { streamChat, streamChatV2, SSEEvent } from '@/lib/api';
+import { streamChatV2, SSEEvent } from '@/lib/api';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
@@ -13,7 +13,6 @@ export function useChat() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeSkillId, setActiveSkillId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isV2Mode, setIsV2Mode] = useState(false);
   const [activeAgents, setActiveAgents] = useState<Array<{name: string; role: string; status?: string; elapsed?: number}>>([]);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -294,8 +293,7 @@ export function useChat() {
                   .join('\n'),
           }));
 
-      const streamFn = isV2Mode ? streamChatV2 : streamChat;
-      await streamFn(
+      await streamChatV2(
         skillId,
         text,
         sessionId,
@@ -306,7 +304,7 @@ export function useChat() {
         history,
       );
     },
-    [activeSessionId, activeSkillId, isStreaming, isV2Mode, sessions],
+    [activeSessionId, activeSkillId, isStreaming, sessions],
   );
 
   const stopStreaming = useCallback(() => {
@@ -318,23 +316,17 @@ export function useChat() {
     }
   }, []);
 
-  const toggleV2Mode = useCallback(() => {
-    setIsV2Mode(prev => !prev);
-  }, []);
-
   return {
     sessions,
     activeSession,
     activeSessionId,
     activeSkillId,
     isStreaming,
-    isV2Mode,
     activeAgents,
     sendMessage,
     startNewChat,
     selectSession,
     selectSkill,
     stopStreaming,
-    toggleV2Mode,
   };
 }

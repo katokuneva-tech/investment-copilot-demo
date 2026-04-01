@@ -30,7 +30,6 @@ interface ChatAreaProps {
   activeSession: ChatSession | null;
   activeSkillId: string | null;
   isStreaming: boolean;
-  isV2Mode?: boolean;
   activeAgents?: Array<{name: string; role: string; status?: string; elapsed?: number}>;
   onSendMessage: (text: string, attachmentIds?: string[], overrideSkillId?: string) => void;
   onSelectSkill: (skillId: string) => void;
@@ -41,7 +40,6 @@ export default function ChatArea({
   activeSession,
   activeSkillId,
   isStreaming,
-  isV2Mode = false,
   activeAgents = [],
   onSendMessage,
   onSelectSkill,
@@ -138,7 +136,7 @@ export default function ChatArea({
             <MessageBubble key={msg.id} message={msg} />
           ))}
           {/* V2 Agent Progress Indicator */}
-          {isV2Mode && isStreaming && activeAgents.length > 0 && (
+          {isStreaming && activeAgents.length > 0 && (
             <div className="mx-4 mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
               <div className="text-xs font-medium text-gray-500 mb-2">
                 AI Board — {activeAgents.length} аналитиков
