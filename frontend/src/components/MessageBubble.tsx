@@ -46,8 +46,20 @@ const MessageBubble = React.memo(function MessageBubble({ message }: MessageBubb
             switch (block.type) {
               case 'text':
                 return (
-                  <div key={i} className="prose prose-sm max-w-none prose-headings:text-gray-800 prose-headings:font-semibold prose-h2:text-base prose-h2:mt-4 prose-h2:mb-2 prose-h2:border-b prose-h2:border-gray-100 prose-h2:pb-1 prose-h3:text-sm prose-h3:mt-3 prose-h3:mb-1 prose-p:text-gray-700 prose-p:leading-relaxed prose-li:text-gray-700 prose-strong:text-gray-900 prose-a:text-[#E11D48] prose-code:text-[#E11D48] prose-code:bg-red-50 prose-code:px-1 prose-code:rounded prose-table:text-xs prose-th:bg-gray-50 prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-td:border-gray-200">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  <div key={i} className="prose prose-sm max-w-none prose-headings:text-gray-800 prose-headings:font-semibold prose-h2:text-base prose-h2:mt-4 prose-h2:mb-2 prose-h2:border-b prose-h2:border-gray-100 prose-h2:pb-1 prose-h3:text-sm prose-h3:mt-3 prose-h3:mb-1 prose-p:text-gray-700 prose-p:leading-relaxed prose-li:text-gray-700 prose-strong:text-gray-900 prose-a:text-[#E11D48] prose-code:text-[#E11D48] prose-code:bg-red-50 prose-code:px-1 prose-code:rounded">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        table: ({ children }) => (
+                          <div className="my-3 overflow-x-auto rounded-lg border border-gray-200">
+                            <table className="w-full text-xs border-collapse">{children}</table>
+                          </div>
+                        ),
+                        thead: ({ children }) => <thead className="bg-gray-50">{children}</thead>,
+                        th: ({ children }) => <th className="text-left px-3 py-2 font-semibold text-gray-700 border border-gray-200 whitespace-nowrap">{children}</th>,
+                        td: ({ children }) => <td className="px-3 py-1.5 text-gray-600 border border-gray-100">{children}</td>,
+                      }}
+                    >
                       {String(block.data)}
                     </ReactMarkdown>
                   </div>
