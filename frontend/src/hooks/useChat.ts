@@ -60,8 +60,8 @@ export function useChat() {
 
   const sendMessage = useCallback(
     async (text: string, attachmentIds?: string[], overrideSkillId?: string) => {
-      const skillId = overrideSkillId || activeSkillId;
-      if (!skillId || isStreaming) return;
+      const skillId = overrideSkillId || activeSkillId || 'auto';
+      if (isStreaming) return;
 
       let sessionId = activeSessionId;
 

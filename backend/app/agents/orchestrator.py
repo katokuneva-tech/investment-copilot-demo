@@ -62,12 +62,20 @@ CLASSIFY_PROMPT = """Определи тип запроса пользовате
 - market_research — анализ рынка/сектора (размер, рост, игроки, тренды, M&A)
 - benchmarking — сравнение компаний с аналогами (мультипликаторы, peers, implied valuation)
 - committee_advisor — подготовка к комитету, анализ материалов сделки, протокол
+- meta_question — вопрос о самом инструменте (как работает, какая модель, что под капотом, кто сделал)
+- out_of_scope — вопрос НЕ связанный с инвестициями, портфелем, финансами АФК (бытовые вопросы, шутки, погода и т.д.)
 
 Ответь ОДНИМ словом — id скилла. Если не уверен, ответь portfolio_analytics."""
 
+# Static responses for non-analytical queries
+STATIC_RESPONSES = {
+    "meta_question": "Я — Investment Intelligence Copilot, AI-аналитик портфеля АФК Система. Меня разработала команда **MWS AI**. По всем вопросам о технологии и возможностях вы можете обратиться к ним.",
+    "out_of_scope": "К сожалению, я могу помочь только с вопросами по инвестициям, портфелю и финансам АФК Система. Попробуйте задать вопрос по портфельным компаниям, рынкам или инвестиционным проектам.",
+}
+
 
 async def classify_intent(message: str) -> str:
-    """Classify user intent into one of 5 use cases."""
+    """Classify user intent into one of 5 use cases or static response categories."""
     try:
         response = await llm_client.chat(
             system=CLASSIFY_PROMPT,
@@ -76,7 +84,7 @@ async def classify_intent(message: str) -> str:
             max_tokens=50,
         )
         skill_id = response.strip().lower().replace('"', '').replace("'", "")
-        if skill_id in USE_CASE_MAP:
+        if skill_id in USE_CASE_MAP or skill_id in STATIC_RESPONSES:
             return skill_id
     except Exception as e:
         logger.error(f"Intent classification failed: {e}")
@@ -218,6 +226,19 @@ async def orchestrate(
     # Step 1: Intent classification (skip if client already chose a skill)
     if skill_id == "auto" or skill_id not in USE_CASE_MAP:
         skill_id = await classify_intent(message)
+
+    # Handle static responses (meta questions, out of scope) without agents
+    if skill_id in STATIC_RESPONSES:
+        total = time.monotonic() - start
+        return OrchestratorResult(
+            use_case=skill_id,
+            final_answer=STATIC_RESPONSES[skill_id],
+            agent_results=[],
+            director_result=None,
+            total_elapsed_sec=round(total, 1),
+            agents_used=[],
+        )
+
     use_case = USE_CASE_MAP.get(skill_id, "portfolio")
 
     logger.info(f"Orchestrator: use_case={use_case}, skill_id={skill_id}")
@@ -329,6 +350,13 @@ async def orchestrate_stream(
     # Step 1: Classify (skip if client already chose a skill)
     if skill_id == "auto" or skill_id not in USE_CASE_MAP:
         skill_id = await classify_intent(message)
+
+    # Handle static responses (meta questions, out of scope) without agents
+    if skill_id in STATIC_RESPONSES:
+        yield json.dumps({"type": "text", "content": STATIC_RESPONSES[skill_id]})
+        yield json.dumps({"type": "done", "agents_used": [], "use_case": skill_id})
+        return
+
     use_case = USE_CASE_MAP.get(skill_id, "portfolio")
 
     # Step 2: Build agents
