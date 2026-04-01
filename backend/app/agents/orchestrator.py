@@ -338,9 +338,13 @@ async def orchestrate_stream(
         "use_case": use_case,
     })
 
-    # Step 3: Run agents with progress reporting + timeout
+    # Step 3: Run agents with staggered start + timeout
     from app.agents.base_agent import AGENT_TIMEOUT_SEC, _run_with_timeout
-    tasks = {a.NAME: asyncio.create_task(_run_with_timeout(a, AGENT_TIMEOUT_SEC)) for a in agents}
+    tasks = {}
+    for i, a in enumerate(agents):
+        if i > 0:
+            await asyncio.sleep(1.5)  # Stagger to avoid rate limits
+        tasks[a.NAME] = asyncio.create_task(_run_with_timeout(a, AGENT_TIMEOUT_SEC))
     agent_results: list[AgentResult] = []
 
     # Wait for each to complete, emit progress
@@ -354,6 +358,7 @@ async def orchestrate_stream(
             "role": result.role,
             "status": status,
             "elapsed": result.elapsed_sec,
+            "error": result.error or "",
             "preview": result.content[:200] if result.content else result.error or "",
         })
 

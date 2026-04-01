@@ -192,9 +192,10 @@ export function useChat() {
               a.name === ev.agent ? { ...a, status: ev.status, elapsed: ev.elapsed } : a
             ));
             const icon = ev.status === 'done' ? '[OK]' : '[!]';
+            const errorInfo = ev.status !== 'done' && ev.error ? ` — ${ev.error}` : '';
             updateThinkingSteps({
               type: 'tool_result',
-              content: `${icon} ${ev.role} (${ev.elapsed}с)`,
+              content: `${icon} ${ev.role} (${ev.elapsed}с)${errorInfo}`,
               timestamp: Date.now(),
             });
             break;
