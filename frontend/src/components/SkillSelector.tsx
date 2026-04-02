@@ -32,7 +32,7 @@ export default function SkillSelector({
         Investment Intelligence Copilot
       </h2>
       <p className="text-gray-400 mb-8 text-center max-w-lg text-sm">
-        AI-аналитик портфеля АФК Система. Задайте любой вопрос по компаниям,
+        AI-аналитик. Задайте любой вопрос по компаниям,
         инвестпроектам, рынкам или материалам комитета.
       </p>
 

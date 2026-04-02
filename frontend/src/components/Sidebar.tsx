@@ -141,7 +141,7 @@ export default function Sidebar({
             Copilot Hub
           </span>
         </div>
-        <p className="text-xs text-gray-400 mt-1">АФК Система</p>
+        {/* subtitle removed */}
       </div>
 
       <div className="border-b border-gray-100 mx-4" />
