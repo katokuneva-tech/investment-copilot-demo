@@ -14,9 +14,22 @@ from app.services.analytics import log_request
 router = APIRouter()
 
 
-DOC_CHAR_LIMIT = 2000  # chars per document — keep compact for speed
-MAX_TOTAL_CONTEXT = 25000  # hard cap on total context size
-MAX_DOCS = 6  # max documents to include
+# Default limits (portfolio, market, benchmark — speed matters)
+DOC_CHAR_LIMIT = 2000
+MAX_TOTAL_CONTEXT = 25000
+MAX_DOCS = 6
+
+# Committee needs full documents for cross-document contradiction analysis
+SKILL_LIMITS = {
+    "committee_advisor": {"doc_char_limit": 8000, "max_total_context": 60000, "max_docs": 10},
+    "investment_analysis": {"doc_char_limit": 6000, "max_total_context": 50000, "max_docs": 8},
+}
+
+# Which doc IDs are priority for each skill (reuse from skill_router)
+SKILL_DOC_PRIORITY = {
+    "committee_advisor": {"src_project", "src_finmodel", "src_appraiser", "src_mgmt", "src_legal_dd", "src_committee"},
+    "investment_analysis": {"src_project", "src_finmodel", "src_appraiser", "src_mgmt", "src_legal_dd", "src_logistics", "src_jll"},
+}
 
 
 def _build_context_v2(skill_id: str, message: str, session_id: str,
@@ -24,6 +37,11 @@ def _build_context_v2(skill_id: str, message: str, session_id: str,
     """Build document context for v2 agents. Reuses existing doc store."""
     from app.services.document_store import doc_store
     from app.data.kb_loader import KB_OVERVIEW, KB_PORTFOLIO, KB_FINANCIALS
+
+    limits = SKILL_LIMITS.get(skill_id, {})
+    doc_char_limit = limits.get("doc_char_limit", DOC_CHAR_LIMIT)
+    max_total_context = limits.get("max_total_context", MAX_TOTAL_CONTEXT)
+    max_docs = limits.get("max_docs", MAX_DOCS)
 
     parts = []
 
@@ -41,21 +59,29 @@ def _build_context_v2(skill_id: str, message: str, session_id: str,
         fin_text = json.dumps(KB_FINANCIALS, ensure_ascii=False)[:3000]
         parts.append(f"## Финансовые данные\n{fin_text}")
 
-    # 4. Uploaded documents (session + global)
+    # 4. Collect and prioritize documents
     active_docs = [d for d in doc_store.list_global() if d.is_active]
     if session_id:
         active_docs += doc_store.list_session(session_id)
     if attachment_ids:
+        seen_ids = {d.id for d in active_docs}
         active_docs += [d for d in doc_store.list_global()
-                        if d.id in attachment_ids and d not in active_docs]
+                        if d.id in attachment_ids and d.id not in seen_ids]
+
+    # Prioritize skill-specific docs first, then the rest
+    priority_ids = SKILL_DOC_PRIORITY.get(skill_id, set())
+    if priority_ids:
+        priority_docs = [d for d in active_docs if d.id in priority_ids]
+        other_docs = [d for d in active_docs if d.id not in priority_ids]
+        active_docs = priority_docs + other_docs
 
     current_size = sum(len(p) for p in parts)
-    for doc in active_docs[:MAX_DOCS]:
-        if current_size >= MAX_TOTAL_CONTEXT:
+    for doc in active_docs[:max_docs]:
+        if current_size >= max_total_context:
             break
         text = doc_store.get_text(doc.id)
         if text:
-            truncated = text[:DOC_CHAR_LIMIT] if len(text) > DOC_CHAR_LIMIT else text
+            truncated = text[:doc_char_limit] if len(text) > doc_char_limit else text
             part = f"## Документ: {doc.original_name}\n{truncated}"
             current_size += len(part)
             parts.append(part)
