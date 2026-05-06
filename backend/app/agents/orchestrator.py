@@ -454,6 +454,9 @@ async def orchestrate_stream(
     # Step 6: Synthesize
     yield json.dumps({"type": "status", "message": "Синтезирую заключение..."})
 
+    # Small delay to avoid rate limits after agent calls
+    await asyncio.sleep(1.0)
+
     if successful:
         director = FundDirector.synthesize(
             agent_results=successful,
@@ -473,20 +476,21 @@ async def orchestrate_stream(
             ):
                 if chunk and chunk.strip():
                     has_streamed_content = True
-                yield json.dumps({"type": "text", "content": chunk})
-        except Exception as e:
-            logger.error(f"Director streaming failed: {e}")
-            # Fallback to non-streaming
+                    yield json.dumps({"type": "text", "content": chunk})
+        except BaseException as e:
+            logger.error(f"Director streaming failed: {type(e).__name__}: {e}")
+            # Fallback to non-streaming (has retry logic)
             try:
                 result = await asyncio.wait_for(director.run(), timeout=50)
                 if result.content and result.content.strip():
                     has_streamed_content = True
                     yield json.dumps({"type": "text", "content": result.content})
-            except (asyncio.TimeoutError, Exception) as e2:
-                logger.error(f"Director non-streaming fallback also failed: {e2}")
+            except (asyncio.TimeoutError, BaseException) as e2:
+                logger.error(f"Director non-streaming fallback also failed: {type(e2).__name__}: {e2}")
 
         # If director yielded nothing, fallback to concatenated agent reports
         if not has_streamed_content:
+            logger.warning("Director produced no content — using agent reports fallback")
             fallback = "\n\n---\n\n".join(
                 f"## {r.role}\n{r.content}" for r in successful if r.content
             )

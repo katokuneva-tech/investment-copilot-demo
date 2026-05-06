@@ -176,10 +176,10 @@ async def chat_v2_stream(req: ChatRequest, request: Request):
             elapsed_ms = int((time.time() - t0) * 1000)
             log_request(user, f"v2_{req.skill_id}", req.message, elapsed_ms, provider="multi-agent")
 
-        except Exception as e:
+        except BaseException as e:
             log_request(user, f"v2_{req.skill_id}", req.message,
-                        int((time.time() - t0) * 1000), status="error", error=str(e))
-            yield {"data": json.dumps({"type": "error", "content": str(e)})}
+                        int((time.time() - t0) * 1000), status="error", error=f"{type(e).__name__}: {e}")
+            yield {"data": json.dumps({"type": "error", "content": f"{type(e).__name__}: {e}"})}
             yield {"data": json.dumps({"type": "done", "session_id": req.session_id})}
 
     return EventSourceResponse(event_stream())

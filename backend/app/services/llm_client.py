@@ -201,20 +201,47 @@ class LLMClient:
         raise last_error
 
     async def _stream_claude(self, system: str, messages: list[dict], temperature: float):
+        import anthropic
         client = self.claude_async
         has_content = False
-        async with client.messages.stream(
-            model=self.claude_model,
-            max_tokens=4096,
-            system=system,
-            messages=messages,
-            temperature=temperature,
-        ) as stream:
-            async for text in stream.text_stream:
-                if text:
-                    has_content = True
-                    yield text
+        last_error = None
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                async with client.messages.stream(
+                    model=self.claude_model,
+                    max_tokens=4096,
+                    system=system,
+                    messages=messages,
+                    temperature=temperature,
+                ) as stream:
+                    async for text in stream.text_stream:
+                        if text:
+                            has_content = True
+                            yield text
+                # If we got here without error, break retry loop
+                break
+            except (anthropic.RateLimitError, anthropic.APIConnectionError) as e:
+                last_error = e
+                if has_content:
+                    # Already yielded some content, don't retry
+                    print(f"[LLM STREAM] Error after partial content: {e}")
+                    break
+                delay = BASE_DELAY * (2 ** attempt)
+                print(f"[LLM STREAM] {type(e).__name__} (attempt {attempt+1}/{MAX_RETRIES}), retrying in {delay}s...")
+                await asyncio.sleep(delay)
+            except anthropic.APIStatusError as e:
+                last_error = e
+                if e.status_code in RETRYABLE_STATUSES and not has_content:
+                    delay = BASE_DELAY * (2 ** attempt)
+                    print(f"[LLM STREAM] API error {e.status_code} (attempt {attempt+1}/{MAX_RETRIES}), retrying in {delay}s...")
+                    await asyncio.sleep(delay)
+                else:
+                    raise
+
         if not has_content:
+            if last_error:
+                raise last_error
             yield "Не удалось получить ответ от модели. Попробуйте повторить запрос."
 
 
