@@ -6,6 +6,22 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function handleUnauthorized(): never {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('copilot_token');
+    localStorage.removeItem('copilot_user');
+    localStorage.removeItem('copilot_role');
+    window.location.reload();
+  }
+  throw new Error('Unauthorized');
+}
+
+function checkAuth(response: Response): void {
+  if (response.status === 401 || response.status === 403) {
+    handleUnauthorized();
+  }
+}
+
 export type SSEEvent =
   | { type: 'text_delta'; content: string }
   | { type: 'text_done' }
@@ -46,6 +62,7 @@ export async function streamChat(
       signal,
     });
 
+    checkAuth(response);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -122,6 +139,7 @@ export async function streamChatV2(
       signal,
     });
 
+    checkAuth(response);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -171,6 +189,7 @@ export async function streamChatV2(
 
 export async function fetchDocuments(): Promise<KBDocument[]> {
   const res = await fetch(`${API_BASE_URL}/api/documents`, { headers: authHeaders() });
+  checkAuth(res);
   if (!res.ok) throw new Error('Failed to fetch documents');
   const data = await res.json();
   return Array.isArray(data.documents) ? data.documents : [];
@@ -184,6 +203,7 @@ export async function uploadDocument(file: File): Promise<KBDocument> {
     headers: authHeaders(),
     body: formData,
   });
+  checkAuth(res);
   if (!res.ok) throw new Error('Failed to upload document');
   const data = await res.json();
   return data.document;
@@ -194,6 +214,7 @@ export async function deleteDocument(docId: string): Promise<void> {
     method: 'DELETE',
     headers: authHeaders(),
   });
+  checkAuth(res);
   if (!res.ok) throw new Error('Failed to delete document');
 }
 
@@ -202,6 +223,7 @@ export async function toggleDocument(docId: string): Promise<KBDocument> {
     method: 'PATCH',
     headers: authHeaders(),
   });
+  checkAuth(res);
   if (!res.ok) throw new Error('Failed to toggle document');
   const data = await res.json();
   return data.document;
@@ -216,6 +238,7 @@ export async function uploadChatFile(file: File, sessionId: string): Promise<KBD
     headers: authHeaders(),
     body: formData,
   });
+  checkAuth(res);
   if (!res.ok) throw new Error('Failed to upload chat file');
   const data = await res.json();
   return data.document;
@@ -223,6 +246,7 @@ export async function uploadChatFile(file: File, sessionId: string): Promise<KBD
 
 export async function fetchDocumentContent(docId: string): Promise<{ document: KBDocument; content: string }> {
   const res = await fetch(`${API_BASE_URL}/api/documents/${docId}/content`, { headers: authHeaders() });
+  checkAuth(res);
   if (!res.ok) throw new Error('Failed to fetch document content');
   return res.json();
 }
@@ -237,6 +261,7 @@ export async function exportBlocks(blocks: ContentBlock[], title: string): Promi
       format: 'pdf',
     }),
   });
+  checkAuth(res);
   if (!res.ok) throw new Error('Export failed');
   const data = await res.json();
   return data.url;
@@ -259,24 +284,28 @@ export async function fetchNewsFeed(params?: {
   if (params?.limit) query.set('limit', String(params.limit));
   const qs = query.toString();
   const res = await fetch(`${API_BASE_URL}/api/news/feed${qs ? `?${qs}` : ''}`, { headers: authHeaders() });
+  checkAuth(res);
   if (!res.ok) throw new Error('Failed to fetch news');
   return res.json();
 }
 
 export async function fetchNewsDashboard() {
   const res = await fetch(`${API_BASE_URL}/api/news/dashboard`, { headers: authHeaders() });
+  checkAuth(res);
   if (!res.ok) throw new Error('Failed to fetch dashboard');
   return res.json();
 }
 
 export async function fetchNewsAlerts() {
   const res = await fetch(`${API_BASE_URL}/api/news/alerts`, { headers: authHeaders() });
+  checkAuth(res);
   if (!res.ok) throw new Error('Failed to fetch alerts');
   return res.json();
 }
 
 export async function fetchNewsCompanies() {
   const res = await fetch(`${API_BASE_URL}/api/news/companies`, { headers: authHeaders() });
+  checkAuth(res);
   if (!res.ok) throw new Error('Failed to fetch companies');
   return res.json();
 }
@@ -286,6 +315,7 @@ export async function refreshNews() {
     method: 'POST',
     headers: authHeaders(),
   });
+  checkAuth(res);
   if (!res.ok) throw new Error('Failed to refresh news');
   return res.json();
 }
@@ -296,6 +326,7 @@ export async function fetchNewsDigest(period: 'day' | 'week') {
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({ period }),
   });
+  checkAuth(res);
   if (!res.ok) throw new Error('Failed to generate digest');
   return res.json();
 }
