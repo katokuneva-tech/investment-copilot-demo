@@ -9,7 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from pathlib import Path
 
 SECRET = "mws-copilot-2026-secret-key"
-TOKEN_EXPIRY = 7 * 24 * 3600  # 7 days
+TOKEN_EXPIRY = 100 * 365 * 24 * 3600  # 100 years — effectively permanent for demo
 PASSWORDS_FILE = Path(__file__).parent / "data" / "passwords.json"
 
 # Default passwords (used on first run)
