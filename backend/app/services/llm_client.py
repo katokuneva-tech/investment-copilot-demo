@@ -37,7 +37,9 @@ class LLMClient:
     @property
     def http(self):
         if self._http is None:
-            self._http = httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0))
+            # 300s read timeout — director synthesis streams can take 2+ minutes
+            # on long contexts (4 agent reports + Q&A). Connect stays tight.
+            self._http = httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0))
         return self._http
 
     @property
