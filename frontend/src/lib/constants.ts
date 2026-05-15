@@ -92,4 +92,9 @@ export const SKILLS: Skill[] = [
   },
 ];
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+// Hardcoded to bypass Vercel rewrites — they buffer/break SSE streams.
+// CORS is open on the backend (ALLOWED_ORIGINS=*).
+// Override via NEXT_PUBLIC_API_URL env var for local dev.
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  'https://investment-copilot-api-production.up.railway.app';
