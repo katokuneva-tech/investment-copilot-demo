@@ -289,13 +289,19 @@ export function useChat() {
       const handleError = (error: Error) => {
         console.error('Stream error:', error);
         currentTextBlock = null;
-        updateAssistantBlocks((blocks) => [
-          ...blocks,
-          {
-            type: 'text',
-            data: '\n\n⚠️ Произошла ошибка при получении ответа. Попробуйте ещё раз.',
-          },
-        ]);
+        // If significant content already streamed, show a subtle note instead
+        // of the alarming "error" banner. Many late-stream drops still leave
+        // 95%+ of a useful answer on screen.
+        updateAssistantBlocks((blocks) => {
+          const streamedChars = blocks
+            .filter((b) => b.type === 'text')
+            .reduce((acc, b) => acc + String(b.data).length, 0);
+          const message =
+            streamedChars > 200
+              ? '\n\n_(соединение прервано — ответ может быть неполным)_'
+              : '\n\n⚠️ Произошла ошибка при получении ответа. Попробуйте ещё раз.';
+          return [...blocks, { type: 'text', data: message }];
+        });
         setIsStreaming(false);
         abortRef.current = null;
       };

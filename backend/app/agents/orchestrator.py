@@ -402,7 +402,15 @@ async def orchestrate_stream(
         yield json.dumps({"type": "status", "message": "Проверяю данные (Data Guard)..."})
 
         guard = DataGuard(context=context, agent_results=successful)
-        guard_result = await guard.run()
+        # Heartbeat during Data Guard validation (15-30s blocking LLM call)
+        # to prevent proxies/clients dropping the SSE connection.
+        guard_task = asyncio.create_task(guard.run())
+        while not guard_task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(guard_task), timeout=10.0)
+            except asyncio.TimeoutError:
+                yield json.dumps({"type": "heartbeat"})
+        guard_result = guard_task.result()
 
         if guard_result.content and not guard_result.error:
             try:
