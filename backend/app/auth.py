@@ -22,7 +22,7 @@ _DEFAULT_USERS = {
     "director-omega": {"name": "Тестировщик 5", "role": "user"},
     "samsonov-sistema": {"name": "Самсонов", "role": "user"},
     "cherkasov-sistema": {"name": "Черкасов М.Х.", "role": "user"},
-    "InvestCopilotTest2026": {"name": "Demo", "role": "demo"},
+    "MWSCopilot-Demo-2026": {"name": "Demo", "role": "demo"},
 }
 
 
