@@ -438,7 +438,15 @@ async def orchestrate_stream(
         yield json.dumps({"type": "status", "message": "Директор уточняет у аналитиков..."})
 
         try:
-            qa_context = await run_qa_loop(successful, message, context)
+            # Run Q&A as a task so we can heartbeat while it works
+            # (prevents proxy/CDN closing the SSE connection on long Q&A)
+            qa_task = asyncio.create_task(run_qa_loop(successful, message, context))
+            while not qa_task.done():
+                try:
+                    await asyncio.wait_for(asyncio.shield(qa_task), timeout=10.0)
+                except asyncio.TimeoutError:
+                    yield json.dumps({"type": "heartbeat"})
+            qa_context = qa_task.result()
             if qa_context:
                 yield json.dumps({
                     "type": "agent_progress",
